@@ -1,0 +1,108 @@
+<Application x:Class="YouTubeDownloader.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="src/Windows/MainWindow.xaml">
+    <Application.Resources>
+        <!-- iOS Color Palette -->
+        <Color x:Key="PrimaryBlue">#6B4FC3</Color>
+        <Color x:Key="SecondaryBlue">#5838A8</Color>
+        <Color x:Key="DarkBlue">#4A2C8D</Color>
+        <Color x:Key="LightGray">#F2F2F7</Color>
+        <Color x:Key="Pink">#FFC0CB</Color>
+        
+        <!-- Light Mode Colors -->
+        <Color x:Key="LightBackground">#F2F2F7</Color>
+        <Color x:Key="LightOverlay">#CCFFFFFF</Color>
+        <Color x:Key="LightSearchBox">#CCFFFFFF</Color>
+        <Color x:Key="LightCardBg">#B3FFFFFF</Color>
+        <Color x:Key="LightPanelBg">#E6F1F5F9</Color>
+        <Color x:Key="LightTextPrimary">#FFFFFF</Color>
+        <Color x:Key="LightTextSecondary">#64748b</Color>
+        
+        <!-- Dark Mode Colors -->
+        <Color x:Key="DarkBackground">#1C1C1E</Color>
+        <Color x:Key="DarkOverlay">#99000000</Color>
+        <Color x:Key="DarkSearchBox">#CC2C2C2E</Color>
+        <Color x:Key="DarkCardBg">#B32C2C2E</Color>
+        <Color x:Key="DarkPanelBg">#E61C1C1E</Color>
+        <Color x:Key="DarkTextPrimary">#FFFFFF</Color>
+        <Color x:Key="DarkTextSecondary">#98989D</Color>
+        
+        <!-- Dynamic Brushes -->
+        <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource LightBackground}"/>
+        <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource LightOverlay}"/>
+        <SolidColorBrush x:Key="SearchBoxBrush" Color="{StaticResource LightSearchBox}"/>
+        <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource LightCardBg}"/>
+        <SolidColorBrush x:Key="PanelBgBrush" Color="{StaticResource LightPanelBg}"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource LightTextPrimary}"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource LightTextSecondary}"/>
+        
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="PrimaryBlueBrush" Color="{StaticResource PrimaryBlue}"/>
+        <SolidColorBrush x:Key="SecondaryBlueBrush" Color="{StaticResource SecondaryBlue}"/>
+        <SolidColorBrush x:Key="DarkBlueBrush" Color="{StaticResource DarkBlue}"/>
+        <SolidColorBrush x:Key="LightGrayBrush" Color="{StaticResource LightGray}"/>
+        
+        <!-- iOS Blue Gradient -->
+        <LinearGradientBrush x:Key="BlueGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="{StaticResource PrimaryBlue}" Offset="0"/>
+            <GradientStop Color="{StaticResource SecondaryBlue}" Offset="1"/>
+        </LinearGradientBrush>
+        
+        <!-- Button Style -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BlueGradient}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                      Foreground="{TemplateBinding Foreground}"
+                                      FontSize="{TemplateBinding FontSize}"
+                                      FontWeight="{TemplateBinding FontWeight}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.9"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.8"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <!-- TextBox Style -->
+        <Style x:Key="ModernTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,12"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="25">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                        Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>
