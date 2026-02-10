@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ApplicationIcon>sakura.ico</ApplicationIcon>
+    <AssemblyName>YouTubeDownloader</AssemblyName>
+    <Version>2.0.0</Version>
+    <Authors>Your Name</Authors>
+    <Description>Beautiful YouTube Downloader with Quality Selection</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- No external packages needed - using yt-dlp.exe directly -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\**\*" />
+  </ItemGroup>
+
+  <!-- Note: .NET SDK automatically includes all .cs and .xaml files from the project
+       so we don't need to manually specify them! Learned this the hard way :) -->
+
+</Project>
