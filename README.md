@@ -91,7 +91,9 @@ A: Technically yes (yt-dlp supports many sites), but I only tested with YouTube.
 ## Credits
 
 - **yt-dlp** - The amazing download engine: https://github.com/yt-dlp/yt-dlp
-- **Sakura background** - Free stock image from the pintrest : light mode (https://www.pinterest.com/pin/5981412001759686) Dark mode (https://www.pinterest.com/pin/27866091441942633/)
+- **Sakura background** - Free stock image from the pintrest : 
+light mode (https://www.pinterest.com/pin/5981412001759686) 
+Dark mode (https://www.pinterest.com/pin/27866091441942633/)
 - **Icon** - Custom made (badly)  😅
 
 ## License
@@ -109,4 +111,5 @@ If you found this useful, consider:
 ---
 
 **Note**: This is a learning project! I started this because i needed application like this. The code is far from to be perfect but it works. Feel free to teach me better ways to do things! 🙂
+
 
