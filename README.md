@@ -111,5 +111,11 @@ If you found this useful, consider:
 ---
 
 **Note**: This is a learning project! I started this because i needed application like this. The code is far from to be perfect but it works. Feel free to teach me better ways to do things! 🙂
+<img width="449" height="799" alt="2026-02-10 04_21_23-" src="https://github.com/user-attachments/assets/9c9f8ee1-723e-4e4c-8d96-29315e7d7394" />
+<img width="450" height="799" alt="2026-02-10 04_21_14-" src="https://github.com/user-attachments/assets/544a81bd-4f11-4728-8b1c-2e9fffe213d0" />
+<img width="450" height="796" alt="2026-02-10 04_21_06-" src="https://github.com/user-attachments/assets/8aac60e3-0f98-40a7-83dc-8e0caffc05cc" />
+<img width="449" height="797" alt="2026-02-10 04_20_54-" src="https://github.com/user-attachments/assets/194dadcd-4d2e-442f-950b-428ed41f0466" />
+<img width="451" height="797" alt="2026-02-10 04_20_23-" src="https://github.com/user-attachments/assets/669d03c0-8b75-40bd-9c7f-4fd630e837b0" />
+<img width="450" height="798" alt="2026-02-10 04_20_11-" src="https://github.com/user-attachments/assets/0628c2c6-7e8e-4976-8e7c-abef1d722211" />
 
 
