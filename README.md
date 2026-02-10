@@ -10,12 +10,12 @@ A beautiful and simple YouTube video downloader built with C# and WPF. Download 
 
 ## Features
 
-- 🎥 Download YouTube videos in multiple quality options (360p, 720p, 1080p, etc.)
-- 🎵 Download audio-only files in MP3 or M4A format
-- 📊 Real-time download progress with speed indicator
-- 🌸 Beautiful cherry blossom themed UI with animated petals
-- 📝 Queue multiple downloads at once
-- 💾 Choose custom download location
+-  Download YouTube videos in multiple quality options (360p, 720p, 1080p, etc.)
+-  Download audio-only files in MP3 or M4A format
+-  Real-time download progress with speed indicator
+-  Beautiful cherry blossom themed UI with animated petals
+-  Queue multiple downloads at once
+-  Choose custom download location
 
 ## Requirements
 
@@ -94,7 +94,7 @@ A: Technically yes (yt-dlp supports many sites), but I only tested with YouTube.
 - **Sakura background** - Free stock image from the pintrest : 
 light mode (https://www.pinterest.com/pin/5981412001759686) 
 Dark mode (https://www.pinterest.com/pin/27866091441942633/)
-- **Icon** - Custom made (badly)  😅
+- **Icon** - Custom made (badly) 
 
 ## License
 
@@ -103,10 +103,10 @@ MIT License - feel free to use this however you want!
 ## Support
 
 If you found this useful, consider:
-- ⭐ Starring this repo
-- 🐛 Reporting bugs
-- 💡 Suggesting features
-- 🔀 Forking and improving it!
+-  Starring this repo
+-  Reporting bugs
+-  Suggesting features
+-  Forking and improving it!
 
 ---
 
@@ -117,5 +117,6 @@ If you found this useful, consider:
 <img width="449" height="797" alt="2026-02-10 04_20_54-" src="https://github.com/user-attachments/assets/194dadcd-4d2e-442f-950b-428ed41f0466" />
 <img width="451" height="797" alt="2026-02-10 04_20_23-" src="https://github.com/user-attachments/assets/669d03c0-8b75-40bd-9c7f-4fd630e837b0" />
 <img width="450" height="798" alt="2026-02-10 04_20_11-" src="https://github.com/user-attachments/assets/0628c2c6-7e8e-4976-8e7c-abef1d722211" />
+
 
 
