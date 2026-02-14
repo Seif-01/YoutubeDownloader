@@ -54,12 +54,12 @@ I organized the code into folders to make it easier to maintain. Still learning 
 Things I want to add eventually:
 
 - [ ] Playlist support (download entire playlists)
-- [ ] Download history with search
+- [x] Download history with search
 - [ ] Subtitle downloading
-- [ ] Multiple simultaneous downloads
-- [ ] Themes (dark mode, different colors)
+- [x] Multiple simultaneous downloads
+- [x] Themes (dark mode, different colors)
 - [ ] Auto-update feature
-- [ ] Portable mode (no installation required)
+- [x] Portable mode (no installation required)
 
 ## Contributing
 
@@ -71,7 +71,6 @@ I'm still learning C# and WPF, so if you have suggestions or improvements, feel 
 - **Framework**: .NET 8.0
 - **UI**: WPF (Windows Presentation Foundation)
 - **Download Engine**: yt-dlp
-- **JSON**: System.Text.Json
 
 No external NuGet packages required! Everything is built-in except yt-dlp.
 
@@ -93,8 +92,8 @@ A: Technically yes (yt-dlp supports many sites), but I only tested with YouTube.
 
 - **yt-dlp** - The amazing download engine: https://github.com/yt-dlp/yt-dlp
 - **Sakura background** - Free stock image from the pintrest : 
-light mode (https://www.pinterest.com/pin/5981412001759686) 
-Dark mode (https://www.pinterest.com/pin/27866091441942633/)
+[light mode](https://www.pinterest.com/pin/74872412552353463/) 
+[Dark mode](https://www.pinterest.com/pin/1125968708311749/)
 - **Icon** - Custom made (badly) 
 
 ## License
@@ -118,6 +117,7 @@ If you found this useful, consider:
 <img width="449" height="797" alt="2026-02-10 04_20_54-" src="https://github.com/user-attachments/assets/194dadcd-4d2e-442f-950b-428ed41f0466" />
 <img width="451" height="797" alt="2026-02-10 04_20_23-" src="https://github.com/user-attachments/assets/669d03c0-8b75-40bd-9c7f-4fd630e837b0" />
 <img width="450" height="798" alt="2026-02-10 04_20_11-" src="https://github.com/user-attachments/assets/0628c2c6-7e8e-4976-8e7c-abef1d722211" />
+
 
 
 
