@@ -111,12 +111,17 @@ If you found this useful, consider:
 ---
 
 **Note**: This is a learning project! I started this because i needed application like this. The code is far from to be perfect but it works. Feel free to teach me better ways to do things! 🙂
-<img width="449" height="799" alt="2026-02-10 04_21_23-" src="https://github.com/user-attachments/assets/9c9f8ee1-723e-4e4c-8d96-29315e7d7394" />
-<img width="450" height="799" alt="2026-02-10 04_21_14-" src="https://github.com/user-attachments/assets/544a81bd-4f11-4728-8b1c-2e9fffe213d0" />
-<img width="450" height="796" alt="2026-02-10 04_21_06-" src="https://github.com/user-attachments/assets/8aac60e3-0f98-40a7-83dc-8e0caffc05cc" />
-<img width="449" height="797" alt="2026-02-10 04_20_54-" src="https://github.com/user-attachments/assets/194dadcd-4d2e-442f-950b-428ed41f0466" />
-<img width="451" height="797" alt="2026-02-10 04_20_23-" src="https://github.com/user-attachments/assets/669d03c0-8b75-40bd-9c7f-4fd630e837b0" />
-<img width="450" height="798" alt="2026-02-10 04_20_11-" src="https://github.com/user-attachments/assets/0628c2c6-7e8e-4976-8e7c-abef1d722211" />
+
+<img width="446" height="797" alt="2026-02-13 22_54_53-" src="https://github.com/user-attachments/assets/27f818c9-debd-4a3a-9f04-4cc90f4db96d" />
+
+<img width="449" height="795" alt="2026-02-13 22_55_11-" src="https://github.com/user-attachments/assets/864b4de3-1c51-45d5-b9d3-8897f0c95f7d" />
+
+<img width="448" height="795" alt="2026-02-13 22_55_44-" src="https://github.com/user-attachments/assets/c5d18bc2-930e-4fb0-a2aa-6009092f0aeb" />
+
+<img width="452" height="794" alt="2026-02-13 22_57_05-" src="https://github.com/user-attachments/assets/10d13586-9338-4a44-8ce0-d7d74495220b" />
+
+<img width="449" height="795" alt="2026-02-13 22_57_20-" src="https://github.com/user-attachments/assets/63876099-d0cf-43d0-b2e0-d293a24a9f1c" />
+
 
 
 
