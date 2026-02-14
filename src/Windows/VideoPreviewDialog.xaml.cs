@@ -22,17 +22,40 @@ namespace YouTubeDownloader
             
             _formats = formats;
             
-            // Set video title
-            TitleText.Text = videoInfo.Title;
+            // Set video title in Title Case (not ALL CAPS)
+            TitleText.Text = ConvertToTitleCase(videoInfo.Title);
             
-            // Load thumbnail
+            // Load high-quality thumbnail (maxresdefault)
             if (!string.IsNullOrEmpty(videoInfo.ThumbnailUrl))
             {
-                LoadThumbnail(videoInfo.ThumbnailUrl);
+                LoadThumbnail(GetMaxResolutionThumbnail(videoInfo.ThumbnailUrl));
             }
             
             // Create quality options
             CreateQualityOptions();
+        }
+        
+        private string ConvertToTitleCase(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            
+            var textInfo = System.Globalization.CultureInfo.CurrentCulture.TextInfo;
+            return textInfo.ToTitleCase(text.ToLower());
+        }
+        
+        private string GetMaxResolutionThumbnail(string thumbnailUrl)
+        {
+            // Try to get the highest quality thumbnail from YouTube
+            // Replace default/hqdefault/mqdefault with maxresdefault
+            if (thumbnailUrl.Contains("youtube.com") || thumbnailUrl.Contains("ytimg.com"))
+            {
+                thumbnailUrl = thumbnailUrl
+                    .Replace("/default.jpg", "/maxresdefault.jpg")
+                    .Replace("/hqdefault.jpg", "/maxresdefault.jpg")
+                    .Replace("/mqdefault.jpg", "/maxresdefault.jpg")
+                    .Replace("/sddefault.jpg", "/maxresdefault.jpg");
+            }
+            return thumbnailUrl;
         }
 
         private async void LoadThumbnail(string url)
@@ -67,7 +90,7 @@ namespace YouTubeDownloader
             {
                 var radioButton = new RadioButton
                 {
-                    Style = (Style)FindResource("QualityButton"),
+                    Style = (Style)FindResource("ResolutionItem"),
                     GroupName = "Quality",
                     IsChecked = isFirst,
                     Tag = format
@@ -79,39 +102,47 @@ namespace YouTubeDownloader
                     var rb = s as RadioButton;
                     if (rb?.Template.FindName("resolution", rb) is TextBlock resolutionText)
                     {
-                        resolutionText.Text = format.Resolution;
+                        // Format: "1080p (HD)" style
+                        var resText = format.Resolution;
+                        if (format.Height >= 2160)
+                            resText = $"{format.Height}p (4K)";
+                        else if (format.Height >= 1080)
+                            resText = $"{format.Height}p (HD)";
+                        else
+                            resText = $"{format.Height}p";
+                        
+                        resolutionText.Text = resText;
                     }
                     
                     if (rb?.Template.FindName("filesize", rb) is TextBlock filesizeText)
                     {
-                        var sizeInMB = format.Filesize / (1024.0 * 1024.0);
                         var audioText = format.HasAudio ? "with audio" : "video only";
-                        filesizeText.Text = $"~{sizeInMB:F1} MB • {audioText}";
+                        if (format.Filesize > 0)
+                        {
+                            var sizeInMB = format.Filesize / (1024.0 * 1024.0);
+                            filesizeText.Text = $"~{sizeInMB:F1} MB • {audioText}";
+                        }
+                        else if (format.Bitrate > 0)
+                        {
+                            // Show bitrate in Mbps for better accuracy
+                            var bitrateMbps = format.Bitrate / 1000.0;
+                            filesizeText.Text = $"~{bitrateMbps:F1} Mbps • {audioText}";
+                        }
+                        else
+                        {
+                            filesizeText.Text = $"Size unknown • {audioText}";
+                        }
                     }
                     
-                    // Show "Best" badge for highest quality
+                    // Show "Best" badge for highest quality - smaller, pill-shaped
                     if (format.Height == _formats.Max(f => f.Height) && 
+                        rb?.Template.FindName("badgeBorder", rb) is Border badgeBorder &&
                         rb?.Template.FindName("badge", rb) is TextBlock badgeText)
                     {
                         badgeText.Text = "BEST";
-                        
-                        var gradient = new LinearGradientBrush
-                        {
-                            StartPoint = new Point(0, 0),
-                            EndPoint = new Point(1, 1)
-                        };
-                        gradient.GradientStops.Add(new GradientStop(Color.FromRgb(0, 122, 255), 0));  // iOS Blue
-                        gradient.GradientStops.Add(new GradientStop(Color.FromRgb(0, 81, 213), 1));
-                        
-                        badgeText.Background = gradient;
-                        badgeText.Foreground = Brushes.White;
-                        badgeText.Visibility = Visibility.Visible;
-                        
-                        var border = new Border
-                        {
-                            CornerRadius = new CornerRadius(6),
-                            Child = badgeText
-                        };
+                        badgeText.Foreground = new SolidColorBrush(Color.FromRgb(29, 78, 216)); // Dark blue text
+                        badgeBorder.Background = new SolidColorBrush(Color.FromRgb(219, 234, 254)); // Light blue background
+                        badgeBorder.Visibility = Visibility.Visible;
                     }
                 };
                 
@@ -144,10 +175,32 @@ namespace YouTubeDownloader
             }
         }
 
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        private void VideoTab_Checked(object sender, RoutedEventArgs e)
         {
-            DialogResult = false;
-            Close();
+            // Recreate quality options showing video formats
+            if (_formats != null)
+            {
+                QualityPanel.Children.Clear();
+                CreateQualityOptions();
+            }
+        }
+
+        private void AudioTab_Checked(object sender, RoutedEventArgs e)
+        {
+            // Show audio formats (simplified - just show message for now)
+            if (_formats != null)
+            {
+                QualityPanel.Children.Clear();
+                var textBlock = new TextBlock
+                {
+                    Text = "Audio download coming soon!",
+                    FontSize = 15,
+                    Foreground = new SolidColorBrush(Color.FromRgb(142, 142, 147)),
+                    TextAlignment = TextAlignment.Center,
+                    Margin = new Thickness(0, 20, 0, 20)
+                };
+                QualityPanel.Children.Add(textBlock);
+            }
         }
     }
 }
