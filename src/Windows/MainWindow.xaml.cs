@@ -1,9 +1,3 @@
-// Main Window - This is the main UI window for the YouTube Downloader
-// I organized the code into folders to make it cleaner!
-// - Models: VideoInfo, FormatInfo, DownloadItem (data classes)
-// - Helpers: FileHelper, YtDlpHelper (utility functions)
-// - Windows: This file and VideoPreviewDialog (UI code)
-
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -20,6 +14,8 @@ using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using System.Text.Json;
 using System.Threading;
+using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Media.Imaging;
 // Added references to my models and helpers folders
 using YouTubeDownloader.Models;
@@ -31,6 +27,7 @@ namespace YouTubeDownloader
     {
 
         private readonly DispatcherTimer _petalTimer;
+        private readonly DispatcherTimer _autoSaveTimer;
         private readonly Random _random;
         private string _downloadFolder;
         private readonly string _ytDlpPath;
@@ -38,6 +35,7 @@ namespace YouTubeDownloader
         private readonly string _settingsPath;
         private ObservableCollection<DownloadItem> _downloads;
         private Dictionary<DownloadItem, CancellationTokenSource> _downloadCancellations;
+        private Dictionary<DownloadItem, PropertyChangedEventHandler> _downloadPropertyHandlers = new();
         
         // Quality selector state
         private VideoInfo? _currentVideoInfo;
@@ -47,6 +45,7 @@ namespace YouTubeDownloader
         
         // Dark mode state
         private bool _isDarkMode = false;
+        private bool _showOnlyCompleted = false;
 
         public MainWindow()
         {
@@ -88,6 +87,21 @@ namespace YouTubeDownloader
             _petalTimer.Interval = TimeSpan.FromMilliseconds(500);
             _petalTimer.Tick += CreatePetal;
             _petalTimer.Start();
+            
+            // Auto-save timer: saves download progress every 5 seconds during active downloads
+            _autoSaveTimer = new DispatcherTimer();
+            _autoSaveTimer.Interval = TimeSpan.FromSeconds(5);
+            _autoSaveTimer.Tick += (s, e) =>
+            {
+                if (_downloads.Any(d => d.Status == DownloadStatus.Downloading))
+                {
+                    SaveDownloadHistory();
+                }
+                else
+                {
+                    _autoSaveTimer.Stop();
+                }
+            };
             
             // Initialize theme (this loads the background image)
             ApplyTheme();
@@ -298,12 +312,12 @@ namespace YouTubeDownloader
                 }
 
                 // Show loading indicator
-                var loadingWindow = ShowLoadingWindow("Fetching video information...");
+                ShowLoading("Fetching video information…");
 
                 // Get video info and formats
                 var (videoInfo, formats) = await GetVideoInfoAndFormatsAsync(url);
                 
-                loadingWindow.Close();
+                HideLoading();
 
                 if (videoInfo == null || formats == null || formats.Count == 0)
                 {
@@ -329,6 +343,7 @@ namespace YouTubeDownloader
             }
             catch (Exception ex)
             {
+                HideLoading();
                 var errorMessage = "Download failed!\n\n";
                 errorMessage += $"Error: {ex.Message}\n\n";
                 errorMessage += $"Stack trace:\n{ex.StackTrace}";
@@ -751,40 +766,159 @@ namespace YouTubeDownloader
             await StartDownloadAsync(url, _currentVideoInfo, _selectedFormat);
         }
 
-        private Window ShowLoadingWindow(string message)
+        private DispatcherTimer? _loadingPetalTimer;
+        
+        private void ShowLoading(string message)
         {
-            var loadingWindow = new Window
+            LoadingMessageText.Text = message;
+
+            // Theme the overlay card for dark/light mode — subtle sakura style
+            if (_isDarkMode)
             {
-                Title = "Please Wait",
-                Width = 350,
-                Height = 120,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = this,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStyle = WindowStyle.ToolWindow,
-                Background = new SolidColorBrush(Color.FromRgb(255, 250, 250))
+                LoadingOverlayBg.Color = Color.FromArgb(170, 15, 10, 18);
+                LoadingCardBg.Color = Color.FromArgb(244, 38, 32, 38);
+                LoadingTextFg.Color = Color.FromRgb(230, 210, 215);
+                LoadingRingBg.Stroke = new SolidColorBrush(Color.FromRgb(60, 45, 52));
+                LoadingSubText.Foreground = new SolidColorBrush(Color.FromRgb(150, 125, 135));
+            }
+            else
+            {
+                LoadingOverlayBg.Color = Color.FromArgb(136, 0, 0, 0);
+                LoadingCardBg.Color = Color.FromArgb(244, 255, 250, 251);
+                LoadingTextFg.Color = Color.FromRgb(61, 43, 53);
+                LoadingRingBg.Stroke = new SolidColorBrush(Color.FromRgb(240, 224, 228));
+                LoadingSubText.Foreground = new SolidColorBrush(Color.FromRgb(176, 149, 158));
+            }
+
+            // Show with fade-in
+            LoadingOverlay.Visibility = Visibility.Visible;
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(250)
+            };
+            LoadingOverlay.BeginAnimation(OpacityProperty, fadeIn);
+
+            // Start spinner rotation
+            var spinAnimation = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(1.5),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            LoadingSpinnerRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnimation);
+            
+            // Start animated falling petals in the overlay
+            LoadingPetalsCanvas.Children.Clear();
+            _loadingPetalTimer = new DispatcherTimer();
+            _loadingPetalTimer.Interval = TimeSpan.FromMilliseconds(400);
+            _loadingPetalTimer.Tick += CreateLoadingPetal;
+            _loadingPetalTimer.Start();
+        }
+
+        private void CreateLoadingPetal(object? sender, EventArgs e)
+        {
+            var petalColors = new[]
+            {
+                Color.FromArgb(90, 212, 160, 170),  // Muted rose
+                Color.FromArgb(80, 200, 150, 165),  // Dusty pink
+                Color.FromArgb(70, 220, 180, 190),  // Soft blush
+                Color.FromArgb(85, 190, 140, 155),  // Warm mauve
+                Color.FromArgb(75, 225, 195, 200),  // Pale rose
+            };
+            
+            var color = petalColors[_random.Next(petalColors.Length)];
+            var size = _random.Next(8, 16);
+            
+            var petal = new Border
+            {
+                Width = size,
+                Height = size,
+                Background = new RadialGradientBrush(
+                    color,
+                    Color.FromArgb(40, 255, 192, 203)
+                ),
+                CornerRadius = new CornerRadius(size / 2.0, 0, size / 2.0, 0),
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                Opacity = 0.8
             };
 
-            var stack = new StackPanel
+            Canvas.SetLeft(petal, _random.Next(0, Math.Max(1, (int)LoadingOverlay.ActualWidth)));
+            Canvas.SetTop(petal, -20);
+            LoadingPetalsCanvas.Children.Add(petal);
+
+            var duration = TimeSpan.FromSeconds(_random.Next(4, 8));
+            
+            // Sway horizontally
+            var swayAmount = _random.Next(-40, 40);
+            
+            var moveDown = new DoubleAnimation
             {
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center
+                From = -20,
+                To = Math.Max(200, LoadingOverlay.ActualHeight + 20),
+                Duration = duration,
+                EasingFunction = new SineEase()
             };
 
-            var textBlock = new TextBlock
+            var moveHorizontal = new DoubleAnimation
             {
-                Text = message,
-                FontSize = 14,
-                Foreground = new SolidColorBrush(Color.FromRgb(26, 26, 46)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(20)
+                By = swayAmount,
+                Duration = duration,
+                AutoReverse = false
             };
 
-            stack.Children.Add(textBlock);
-            loadingWindow.Content = stack;
-            loadingWindow.Show();
+            var rotate = new DoubleAnimation
+            {
+                From = 0,
+                To = _random.Next(-360, 360),
+                Duration = duration
+            };
 
-            return loadingWindow;
+            var fadeOut = new DoubleAnimation
+            {
+                From = 0.8,
+                To = 0,
+                BeginTime = duration - TimeSpan.FromSeconds(1.5),
+                Duration = TimeSpan.FromSeconds(1.5)
+            };
+
+            var rotateTransform = new RotateTransform();
+            petal.RenderTransform = rotateTransform;
+
+            petal.BeginAnimation(Canvas.TopProperty, moveDown);
+            petal.BeginAnimation(Canvas.LeftProperty, moveHorizontal);
+            rotateTransform.BeginAnimation(RotateTransform.AngleProperty, rotate);
+            petal.BeginAnimation(OpacityProperty, fadeOut);
+
+            moveDown.Completed += (s, _) => LoadingPetalsCanvas.Children.Remove(petal);
+        }
+
+        private void HideLoading()
+        {
+            if (LoadingOverlay.Visibility != Visibility.Visible) return;
+
+            // Stop spinner
+            LoadingSpinnerRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            
+            // Stop petal timer
+            _loadingPetalTimer?.Stop();
+            _loadingPetalTimer = null;
+
+            // Fade out
+            var fadeOut = new DoubleAnimation
+            {
+                From = 1,
+                To = 0,
+                Duration = TimeSpan.FromMilliseconds(200)
+            };
+            fadeOut.Completed += (s, e) =>
+            {
+                LoadingOverlay.Visibility = Visibility.Collapsed;
+                LoadingPetalsCanvas.Children.Clear();
+            };
+            LoadingOverlay.BeginAnimation(OpacityProperty, fadeOut);
         }
 
         private async Task StartDownloadAsync(string url, VideoInfo videoInfo, FormatInfo selectedFormat)
@@ -825,6 +959,10 @@ namespace YouTubeDownloader
             // Create cancellation token
             var cts = new CancellationTokenSource();
             _downloadCancellations[downloadItem] = cts;
+
+            // Start auto-save timer to persist progress periodically
+            if (!_autoSaveTimer.IsEnabled)
+                _autoSaveTimer.Start();
 
             try
             {
@@ -900,6 +1038,10 @@ namespace YouTubeDownloader
             // Create new cancellation token
             var cts = new CancellationTokenSource();
             _downloadCancellations[item] = cts;
+
+    // Start auto-save timer to persist progress periodically
+    if (!_autoSaveTimer.IsEnabled)
+        _autoSaveTimer.Start();
 
             try
             {
@@ -1158,24 +1300,29 @@ namespace YouTubeDownloader
         {
             var formatArg = formatId == "best" ? "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" : formatId;
             
+            // Determine if this is a multi-fragment download (video+audio = 2 separate streams)
+            bool isAudioOnly = outputPath.EndsWith(".mp3") || outputPath.EndsWith(".m4a");
+            bool isMultiFragment = !isAudioOnly;
+            int fragmentCount = 0;
+            
             // Build arguments based on output format
             string arguments;
             if (outputPath.EndsWith(".mp3"))
             {
                 // For MP3, extract audio and convert
-                arguments = $"--newline --no-playlist -c -f \"{formatArg}\" " +
+                arguments = $"--newline --no-playlist --no-part -c -f \"{formatArg}\" " +
                           $"-x --audio-format mp3 --audio-quality 0 -o \"{outputPath}\" \"{url}\"";
             }
             else if (outputPath.EndsWith(".m4a"))
             {
                 // For M4A, extract audio
-                arguments = $"--newline --no-playlist -c -f \"{formatArg}\" " +
+                arguments = $"--newline --no-playlist --no-part -c -f \"{formatArg}\" " +
                           $"-x --audio-format m4a -o \"{outputPath}\" \"{url}\"";
             }
             else
             {
                 // For video (MP4)
-                arguments = $"--newline --no-playlist -c -f \"{formatArg}+bestaudio/best\" " +
+                arguments = $"--newline --no-playlist --no-part -c -f \"{formatArg}+bestaudio/best\" " +
                           $"--merge-output-format mp4 -o \"{outputPath}\" \"{url}\"";
             }
             
@@ -1195,6 +1342,12 @@ namespace YouTubeDownloader
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
+                    // Detect new download fragment (yt-dlp logs "[download] Destination:" for each stream)
+                    if (e.Data.Contains("[download] Destination:"))
+                    {
+                        fragmentCount++;
+                    }
+                    
                     // Parse progress from yt-dlp output
                     if (e.Data.Contains("[download]") && e.Data.Contains("%"))
                     {
@@ -1206,8 +1359,18 @@ namespace YouTubeDownloader
                                 if (part.EndsWith("%"))
                                 {
                                     var percentStr = part.TrimEnd('%');
-                                    if (double.TryParse(percentStr, out var percent))
+                                    if (double.TryParse(percentStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
                                     {
+                                        // For video+audio downloads, scale each stream's progress to half
+                                        // Fragment 1 (video): 0-50%, Fragment 2 (audio): 50-100%
+                                        if (isMultiFragment && fragmentCount >= 1)
+                                        {
+                                            int frag = Math.Min(fragmentCount, 2);
+                                            double offset = (frag - 1) * 50.0;
+                                            percent = offset + (percent * 0.5);
+                                        }
+                                        percent = Math.Min(percent, 100.0);
+                                        
                                         Dispatcher.Invoke(() =>
                                         {
                                             downloadItem.Progress = percent;
@@ -1220,27 +1383,84 @@ namespace YouTubeDownloader
                         }
                         catch { }
                     }
+                    
+                    // Detect merge/mux phase (ffmpeg combining video+audio)
+                    if (e.Data.Contains("[Merger]") || e.Data.Contains("[Mux]") || e.Data.Contains("Merging"))
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            downloadItem.Progress = 100;
+                            downloadItem.DownloadedSize = downloadItem.TotalSize;
+                        });
+                    }
                 }
             };
 
+            // CRITICAL: Drain stderr asynchronously to prevent deadlock during ffmpeg merge.
+            // Without this, the stderr buffer fills up and the process hangs forever.
+            process.ErrorDataReceived += (sender, e) => { /* drain stderr buffer */ };
+
             process.Start();
             process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
             // Wait for completion or cancellation
             while (!process.HasExited)
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    process.Kill();
+                    try { process.Kill(); } catch { }
                     throw new OperationCanceledException();
                 }
                 await Task.Delay(100);
             }
 
-            if (process.ExitCode != 0)
+            // Only check exit code if we weren't cancelled (Kill() causes non-zero exit)
+            if (!cancellationToken.IsCancellationRequested && process.ExitCode != 0)
             {
-                var error = await process.StandardError.ReadToEndAsync();
-                throw new Exception($"yt-dlp failed: {error}");
+                throw new Exception($"yt-dlp failed with exit code {process.ExitCode}");
+            }
+        }
+
+        /// <summary>
+        /// Cleans up temporary/partial files left by yt-dlp when a download is cancelled or removed.
+        /// yt-dlp creates separate video (.f{id}.mp4) and audio (.f{id}.webm/.m4a) files before merging.
+        /// </summary>
+        private void CleanupTempFiles(DownloadItem item)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(item.FilePath)) return;
+                
+                var directory = Path.GetDirectoryName(item.FilePath);
+                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(item.FilePath);
+                
+                if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(fileNameWithoutExt)) return;
+                
+                // Delete the main output file if it exists (partial download)
+                if (File.Exists(item.FilePath))
+                {
+                    File.Delete(item.FilePath);
+                }
+                
+                // Delete any yt-dlp temp fragment files (e.g., "Title.f135.mp4", "Title.f251.webm")
+                // These follow the pattern: <filename>.f<formatId>.<ext>
+                var tempFiles = Directory.GetFiles(directory, fileNameWithoutExt + ".f*");
+                foreach (var tempFile in tempFiles)
+                {
+                    try { File.Delete(tempFile); } catch { }
+                }
+                
+                // Also clean up any .part files (in case --no-part wasn't effective)
+                var partFiles = Directory.GetFiles(directory, fileNameWithoutExt + "*.part");
+                foreach (var partFile in partFiles)
+                {
+                    try { File.Delete(partFile); } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to cleanup temp files: {ex.Message}");
             }
         }
 
@@ -1532,13 +1752,51 @@ namespace YouTubeDownloader
             itemBorder.Child = outerStack;
             DownloadsList.Children.Add(itemBorder);
 
-            // Set initial state if item is Paused (e.g. loaded from history)
+            // Set initial state based on current item status (important for RefreshDownloadCards)
             if (item.Status == DownloadStatus.Paused)
             {
                 pauseButton.Template = CreateDownloadButtonTemplate(resumeGreenBg);
                 pauseLabel.Text = "Resume";
                 pauseButton.ToolTip = "Resume Download";
                 pauseIcon.Text = "▶";
+                pauseButton.Visibility = Visibility.Visible;
+                cancelButton.Visibility = Visibility.Visible;
+                removeButton.Visibility = Visibility.Collapsed;
+            }
+            else if (item.Status == DownloadStatus.Completed)
+            {
+                progressPath.Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                percentText.Text = "✓";
+                percentText.FontSize = 22;
+                percentText.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                UpdateProgressRing(100);
+
+                pauseButton.Visibility = Visibility.Collapsed;
+                cancelButton.Visibility = Visibility.Collapsed;
+                removeButton.Visibility = Visibility.Visible;
+            }
+            else if (item.Status == DownloadStatus.Failed)
+            {
+                progressPath.Stroke = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                percentText.Text = "!";
+                percentText.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+
+                pauseButton.Visibility = Visibility.Collapsed;
+                cancelButton.Visibility = Visibility.Collapsed;
+                removeButton.Visibility = Visibility.Visible;
+            }
+            else if (item.Status == DownloadStatus.Downloading)
+            {
+                // Ensure correct state for actively downloading items
+                pauseButton.Template = CreateDownloadButtonTemplate(pauseBlueBg);
+                pauseIcon.Text = "II";
+                pauseLabel.Text = "Pause";
+                pauseButton.ToolTip = "Pause Download";
+                pauseButton.Visibility = Visibility.Visible;
+                cancelButton.Visibility = Visibility.Visible;
+                removeButton.Visibility = Visibility.Collapsed;
+                UpdateProgressRing(item.Progress);
+                percentText.Text = $"{(int)item.Progress}%";
             }
 
             // === Progress Ring Math Helper ===
@@ -1594,6 +1852,9 @@ namespace YouTubeDownloader
                     cts.Cancel();
                 }
                 item.Status = DownloadStatus.Failed;
+                
+                // Clean up partial/temp files from disk
+                CleanupTempFiles(item);
             };
 
             removeButton.Click += (s, e) =>
@@ -1605,10 +1866,16 @@ namespace YouTubeDownloader
                     cts.Cancel();
                     _downloadCancellations.Remove(item);
                 }
+                
+                // Clean up partial/temp files from disk
+                CleanupTempFiles(item);
+                
+                // Save updated history so removed items don't reappear
+                SaveDownloadHistory();
             };
 
             // === Property Changed Listener ===
-            item.PropertyChanged += (s, e) =>
+            PropertyChangedEventHandler handler = (s, e) =>
             {
                 if (e.PropertyName == nameof(DownloadItem.Progress))
                 {
@@ -1639,18 +1906,35 @@ namespace YouTubeDownloader
                         {
                             // Switch to green Resume button
                             pauseButton.Template = CreateDownloadButtonTemplate(resumeGreenBg);
+                            pauseIcon.Text = "▶";
                             pauseLabel.Text = "Resume";
                             pauseButton.ToolTip = "Resume Download";
+                            pauseButton.Visibility = Visibility.Visible;
+                            cancelButton.Visibility = Visibility.Visible;
+                            removeButton.Visibility = Visibility.Collapsed;
                         }
                         else if (item.Status == DownloadStatus.Downloading)
                         {
                             // Switch back to blue Pause button
                             pauseButton.Template = CreateDownloadButtonTemplate(pauseBlueBg);
+                            pauseIcon.Text = "II";
                             pauseLabel.Text = "Pause";
                             pauseButton.ToolTip = "Pause Download";
                             pauseButton.Visibility = Visibility.Visible;
                             cancelButton.Visibility = Visibility.Visible;
                             removeButton.Visibility = Visibility.Collapsed;
+                        }
+                        else if (item.Status == DownloadStatus.Completed)
+                        {
+                            // Green completion
+                            progressPath.Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                            percentText.Text = "✓";
+                            percentText.FontSize = 22;
+                            percentText.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+
+                            pauseButton.Visibility = Visibility.Collapsed;
+                            cancelButton.Visibility = Visibility.Collapsed;
+                            removeButton.Visibility = Visibility.Visible;
                         }
                         else if (item.Status == DownloadStatus.Failed)
                         {
@@ -1665,6 +1949,14 @@ namespace YouTubeDownloader
                     });
                 }
             };
+
+            // Unsubscribe any old handler before adding new one
+            if (_downloadPropertyHandlers.TryGetValue(item, out var oldHandler))
+            {
+                item.PropertyChanged -= oldHandler;
+            }
+            item.PropertyChanged += handler;
+            _downloadPropertyHandlers[item] = handler;
         }
 
         // Creates a clean rounded button template with proper padding baked in
@@ -1787,12 +2079,10 @@ namespace YouTubeDownloader
             transform?.BeginAnimation(TranslateTransform.XProperty, animation);
         }
 
-        private void AllTab_Click(object sender, RoutedEventArgs e)
+        private void AllTab_Click(object sender, MouseButtonEventArgs e)
         {
-            AllTab.Background = Application.Current.Resources["BlueGradient"] as Brush;
-            AllTab.Foreground = Brushes.White;
-            DownloadedTab.Background = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-            DownloadedTab.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+            _showOnlyCompleted = false;
+            UpdateDownloadsTabs(allActive: true);
 
             // Show all downloads
             foreach (Border item in DownloadsList.Children)
@@ -1801,12 +2091,10 @@ namespace YouTubeDownloader
             }
         }
 
-        private void DownloadedTab_Click(object sender, RoutedEventArgs e)
+        private void DownloadedTab_Click(object sender, MouseButtonEventArgs e)
         {
-            DownloadedTab.Background = Application.Current.Resources["BlueGradient"] as Brush;
-            DownloadedTab.Foreground = Brushes.White;
-            AllTab.Background = new SolidColorBrush(Color.FromArgb(128, 226, 232, 240));
-            AllTab.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+            _showOnlyCompleted = true;
+            UpdateDownloadsTabs(allActive: false);
 
             // Show only completed downloads
             foreach (Border item in DownloadsList.Children)
@@ -1820,6 +2108,26 @@ namespace YouTubeDownloader
             }
         }
 
+        private void UpdateDownloadsTabs(bool allActive)
+        {
+            // Active color: blue in light mode, purple in dark mode
+            var activeColor = _isDarkMode
+                ? Color.FromRgb(0x8B, 0x5C, 0xF6) // purple
+                : Color.FromRgb(0x3B, 0x82, 0xF6); // blue
+            var activeBrush = new SolidColorBrush(activeColor);
+            var inactiveBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)); // grey
+
+            // All tab
+            AllTabText.Foreground = allActive ? activeBrush : inactiveBrush;
+            AllTabIcon.Stroke = allActive ? activeBrush : inactiveBrush;
+            AllTabUnderline.Background = allActive ? activeBrush : Brushes.Transparent;
+
+            // Downloaded tab
+            DownloadedTabText.Foreground = !allActive ? activeBrush : inactiveBrush;
+            DownloadedTabIcon.Stroke = !allActive ? activeBrush : inactiveBrush;
+            DownloadedTabUnderline.Background = !allActive ? activeBrush : Brushes.Transparent;
+        }
+
         private void ClearList_Click(object sender, RoutedEventArgs e)
         {
             var result = MessageBox.Show(
@@ -1831,15 +2139,26 @@ namespace YouTubeDownloader
 
             if (result == MessageBoxResult.Yes)
             {
-                var itemsToRemove = DownloadsList.Children
+                // Remove completed items from the data collection
+                var completedItems = _downloads.Where(d => d.Status == DownloadStatus.Completed).ToList();
+                foreach (var item in completedItems)
+                {
+                    _downloads.Remove(item);
+                }
+                
+                // Remove completed items from the UI
+                var uiItemsToRemove = DownloadsList.Children
                     .OfType<Border>()
                     .Where(b => b.Tag is DownloadItem item && item.Status == DownloadStatus.Completed)
                     .ToList();
 
-                foreach (var item in itemsToRemove)
+                foreach (var item in uiItemsToRemove)
                 {
                     DownloadsList.Children.Remove(item);
                 }
+                
+                // Persist the change so cleared items don't reappear on restart
+                SaveDownloadHistory();
             }
         }
 
@@ -1907,7 +2226,10 @@ namespace YouTubeDownloader
                     // Glass card — dark frosted glass
                     GlassCard.Background = new SolidColorBrush(Color.FromArgb(0xCC, 30, 30, 34));
                     AppTitle.Foreground = new SolidColorBrush(Color.FromRgb(230, 230, 235));
-                    SearchBorder.Background = new SolidColorBrush(Color.FromArgb(0x1A, 255, 255, 255));
+                    SearchBorder.Background = new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255));
+                    
+                    // Update action button styles for dark mode
+                    UpdateActionButtonsTheme(true);
                     BackgroundOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0, 0, 0));
                     
                     // URL text box
@@ -1921,6 +2243,20 @@ namespace YouTubeDownloader
                     QualityVideoTitle.Foreground = new SolidColorBrush(Color.FromRgb(230, 230, 230));
                     QualityChannelInfo.Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 145));
                     QualityTabContainer.Background = new SolidColorBrush(Color.FromRgb(28, 28, 32));
+                    
+                    // Downloads panel — dark mode
+                    DownloadsHeaderBorder.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x2E));
+                    DownloadsTitle.Foreground = Brushes.White;
+                    BackArrowPath.Stroke = Brushes.White;
+                    TabsContainerBorder.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x3A));
+                    TabsContainerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x4A));
+                    // Update gear icon fill via visual tree
+                    var gearIcon = FindVisualChild<System.Windows.Shapes.Path>(this, "SettingsGearIcon");
+                    if (gearIcon != null) gearIcon.Fill = Brushes.White;
+                    var settingsBg = FindVisualChild<Border>(this, "SettingsBorder");
+                    if (settingsBg != null) settingsBg.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x3D));
+                    // Update tab colors for current active tab
+                    UpdateDownloadsTabs(allActive: !_showOnlyCompleted);
                     
                     // Dark mode icon → moon
                     var icon = FindDarkModeIcon();
@@ -1953,7 +2289,10 @@ namespace YouTubeDownloader
                     // Glass card — light frosted glass
                     GlassCard.Background = new SolidColorBrush(Color.FromArgb(0xB3, 255, 255, 255));
                     AppTitle.Foreground = new SolidColorBrush(Color.FromRgb(26, 26, 46));
-                    SearchBorder.Background = new SolidColorBrush(Color.FromArgb(0x0A, 0, 0, 0));
+                    SearchBorder.Background = new SolidColorBrush(Color.FromArgb(0xCC, 255, 255, 255));
+                    
+                    // Update action button styles for light mode
+                    UpdateActionButtonsTheme(false);
                     BackgroundOverlay.Background = new SolidColorBrush(Color.FromArgb(0x26, 0, 0, 0));
                     
                     // URL text box
@@ -1967,6 +2306,20 @@ namespace YouTubeDownloader
                     QualityVideoTitle.Foreground = new SolidColorBrush(Color.FromRgb(31, 41, 55));
                     QualityChannelInfo.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128));
                     QualityTabContainer.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+                    
+                    // Downloads panel — light mode
+                    DownloadsHeaderBorder.Background = new SolidColorBrush(Color.FromRgb(0xF0, 0xF2, 0xF5));
+                    DownloadsTitle.Foreground = new SolidColorBrush(Color.FromRgb(0x1E, 0x29, 0x3B));
+                    BackArrowPath.Stroke = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
+                    TabsContainerBorder.Background = new SolidColorBrush(Color.FromRgb(0xE8, 0xEC, 0xF1));
+                    TabsContainerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xD1, 0xD5, 0xDB));
+                    // Update gear icon fill via visual tree
+                    var gearIcon = FindVisualChild<System.Windows.Shapes.Path>(this, "SettingsGearIcon");
+                    if (gearIcon != null) gearIcon.Fill = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6));
+                    var settingsBg = FindVisualChild<Border>(this, "SettingsBorder");
+                    if (settingsBg != null) settingsBg.Background = new SolidColorBrush(Color.FromRgb(0xE2, 0xE8, 0xF0));
+                    // Update tab colors for current active tab
+                    UpdateDownloadsTabs(allActive: !_showOnlyCompleted);
                     
                     // Dark mode icon → sun
                     var icon = FindDarkModeIcon();
@@ -1997,6 +2350,64 @@ namespace YouTubeDownloader
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error updating brush {brushKey}: {ex.Message}");
+            }
+        }
+
+        private void UpdateActionButtonsTheme(bool darkMode)
+        {
+            try
+            {
+                // Find the action buttons inside the GlassCard
+                var glassCardContent = GlassCard.Child as StackPanel;
+                if (glassCardContent == null) return;
+                
+                // The action buttons grid is the last child of the StackPanel
+                var actionGrid = glassCardContent.Children[glassCardContent.Children.Count - 1] as Grid;
+                if (actionGrid == null) return;
+
+                var iconStroke = darkMode
+                    ? new SolidColorBrush(Color.FromRgb(200, 205, 213))   // lighter icons for dark mode
+                    : new SolidColorBrush(Color.FromRgb(71, 85, 105));    // #475569 for light mode
+
+                var buttonBg = darkMode
+                    ? new SolidColorBrush(Color.FromArgb(0x26, 255, 255, 255))  // subtle white in dark mode
+                    : new SolidColorBrush(Color.FromArgb(0xBB, 255, 255, 255)); // frosted white in light mode
+
+                // Iterate through the grid to find buttons
+                foreach (var child in actionGrid.Children)
+                {
+                    if (child is Button btn)
+                    {
+                        // Apply the template so we can find child elements
+                        btn.ApplyTemplate();
+                        var templateBorder = btn.Template?.FindName("border", btn) as Border;
+                        if (templateBorder != null)
+                        {
+                            templateBorder.Background = buttonBg;
+                        }
+                        
+                        // Update icon paths by traversing visual tree
+                        UpdatePathStrokesInVisualTree(btn, iconStroke);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating action buttons theme: {ex.Message}");
+            }
+        }
+
+        private void UpdatePathStrokesInVisualTree(System.Windows.DependencyObject parent, Brush stroke)
+        {
+            int childCount = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is System.Windows.Shapes.Path path && path.Stroke != null)
+                {
+                    path.Stroke = stroke;
+                }
+                UpdatePathStrokesInVisualTree(child, stroke);
             }
         }
 
@@ -2106,7 +2517,3 @@ namespace YouTubeDownloader
                 }
             }
         }
-    }
-
-    // Models moved to src/Models folder - keeping code organized!
-}
