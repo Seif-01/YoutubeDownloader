@@ -20,7 +20,7 @@ A beautiful and simple YouTube video downloader built with C# and WPF. Download 
 ## Requirements
 
 - Windows 10 or later x64
-- FFMPEG [ffmepg ](https://ffmpeg.org/download.html) (make sure to add it to PATH on Windows).
+- [FFMPEG](https://ffmpeg.org/download.html) (make sure to add it to PATH on Windows).
 - .NET 8.0 Runtime (download from [Microsoft](https://dotnet.microsoft.com/download/dotnet/8.0))
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp/releases)(automatically downloaded on first run if missing)
 
@@ -118,6 +118,7 @@ If you found this useful, consider:
 <img width="449" height="797" alt="2026-02-10 04_20_54-" src="https://github.com/user-attachments/assets/194dadcd-4d2e-442f-950b-428ed41f0466" />
 <img width="451" height="797" alt="2026-02-10 04_20_23-" src="https://github.com/user-attachments/assets/669d03c0-8b75-40bd-9c7f-4fd630e837b0" />
 <img width="450" height="798" alt="2026-02-10 04_20_11-" src="https://github.com/user-attachments/assets/0628c2c6-7e8e-4976-8e7c-abef1d722211" />
+
 
 
 
