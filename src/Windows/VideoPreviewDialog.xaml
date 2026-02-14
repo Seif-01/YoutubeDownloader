@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Select Quality" 
-        Height="650" 
-        Width="500"
+        Height="620" 
+        Width="400"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         WindowStyle="None"
@@ -16,74 +16,86 @@
             <GradientStop Color="#0051D5" Offset="1"/>
         </LinearGradientBrush>
         
-        <Style x:Key="QualityButton" TargetType="RadioButton">
+        <!-- iOS-style Segmented Control Button -->
+        <Style x:Key="SegmentedButton" TargetType="RadioButton">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border"
+                                Background="#E8E8ED"
+                                CornerRadius="8"
+                                Padding="0,12"
+                                Margin="3"
+                                Cursor="Hand">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                      x:Name="text"
+                                      FontSize="17"
+                                      FontWeight="Normal"
+                                      Foreground="Black"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="White"/>
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.15" Color="Black"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Resolution List Item -->
+        <Style x:Key="ResolutionItem" TargetType="RadioButton">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="border"
                                 Background="White"
-                                BorderBrush="#E2E8F0"
-                                BorderThickness="2"
-                                CornerRadius="12"
-                                Padding="20,15"
-                                Margin="0,0,0,10">
+                                BorderBrush="#E5E5EA"
+                                BorderThickness="0,0,0,1"
+                                Padding="16,14"
+                                Cursor="Hand">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 
-                                <Ellipse x:Name="radio" 
-                                        Grid.Column="0"
-                                        Width="20" 
-                                        Height="20" 
-                                        Stroke="#94A3B8" 
-                                        StrokeThickness="2"
-                                        Fill="White"
-                                        VerticalAlignment="Center"
-                                        Margin="0,0,15,0"/>
+                                <TextBlock x:Name="resolution" 
+                                          Grid.Column="0"
+                                          FontSize="16" 
+                                          FontWeight="Normal"
+                                          Foreground="Black"
+                                          VerticalAlignment="Center"/>
                                 
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock x:Name="resolution" 
-                                              FontSize="16" 
-                                              FontWeight="SemiBold"
-                                              Foreground="#1E293B"/>
-                                    <TextBlock x:Name="filesize" 
-                                              FontSize="13" 
-                                              Foreground="#64748B"
-                                              Margin="0,4,0,0"/>
-                                </StackPanel>
+                                <!-- Right Chevron -->
+                                <TextBlock Grid.Column="1"
+                                          Text="›" 
+                                          FontSize="18" 
+                                          Foreground="#C7C7CC"
+                                          VerticalAlignment="Center"/>
                                 
-                                <TextBlock x:Name="badge"
-                                          Grid.Column="2"
-                                          FontSize="11"
-                                          FontWeight="Bold"
-                                          Padding="8,4"
-                                          VerticalAlignment="Center"
-                                          Visibility="Collapsed"/>
+                                <!-- Hidden elements for compatibility -->
+                                <TextBlock x:Name="filesize" Visibility="Collapsed"/>
+                                <Border x:Name="badgeBorder" Visibility="Collapsed">
+                                    <TextBlock x:Name="badge"/>
+                                </Border>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="border" Property="BorderBrush" Value="#007AFF"/>
-                                <Setter TargetName="border" Property="Background">
-                                    <Setter.Value>
-                                        <SolidColorBrush Color="#E6F2FF"/>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="radio" Property="Fill">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#007AFF" Offset="0"/>
-                                            <GradientStop Color="#0051D5" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="radio" Property="Stroke" Value="#007AFF"/>
+                                <Setter TargetName="border" Property="Background" Value="#E3F2FD"/>
+                                <Setter TargetName="resolution" Property="Foreground" Value="#007AFF"/>
+                                <Setter TargetName="resolution" Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="BorderBrush" Value="#66B3FF"/>
+                                <Setter TargetName="border" Property="Background" Value="#F5F5F5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -92,109 +104,132 @@
         </Style>
     </Window.Resources>
     
-    <Border Background="#FFFAFA" CornerRadius="20">
+    <!-- Light gray blurred background -->
+    <Border Background="#F0EFEFF4" CornerRadius="20">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.3" Color="#3B82F6"/>
+            <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.2" Color="Black"/>
         </Border.Effect>
         
-        <Grid Margin="30">
+        <Grid Margin="0,20,0,20">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/> <!-- Thumbnail -->
+                <RowDefinition Height="Auto"/> <!-- Chevron -->
+                <RowDefinition Height="Auto"/> <!-- Segmented Control -->
+                <RowDefinition Height="Auto"/> <!-- Divider -->
+                <RowDefinition Height="Auto"/> <!-- Header row -->
+                <RowDefinition Height="Auto"/> <!-- Resolution list -->
+                <RowDefinition Height="*"/>    <!-- Spacer -->
             </Grid.RowDefinitions>
             
-            <!-- Header -->
-            <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                <TextBlock Text="Video Preview" 
-                          FontSize="24" 
-                          FontWeight="Bold" 
-                          Foreground="#1A1A2E"/>
-                <TextBlock x:Name="TitleText"
-                          Text="Video Title" 
-                          FontSize="15" 
-                          Foreground="#64748B"
-                          TextWrapping="Wrap"
-                          Margin="0,8,0,0"/>
-            </StackPanel>
-            
-            <!-- Thumbnail -->
-            <Border Grid.Row="1" 
-                    Height="200" 
-                    CornerRadius="15"
-                    Margin="0,0,0,25"
-                    Background="#E2E8F0">
+            <!-- Small horizontal video thumbnail (16:9) -->
+            <Border Grid.Row="0" 
+                    Height="90" 
+                    Width="160"
+                    CornerRadius="8"
+                    Background="#E5E5EA"
+                    ClipToBounds="True"
+                    HorizontalAlignment="Center"
+                    Margin="0,10,0,10">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.15" Color="#000000"/>
+                    <DropShadowEffect BlurRadius="6" ShadowDepth="2" Opacity="0.12" Color="Black"/>
                 </Border.Effect>
                 <Image x:Name="ThumbnailImage" 
                        Stretch="UniformToFill"/>
             </Border>
             
-            <!-- Quality Selection -->
-            <ScrollViewer Grid.Row="2" 
-                         VerticalScrollBarVisibility="Auto"
-                         Margin="0,0,0,20">
-                <StackPanel x:Name="QualityPanel">
-                    <TextBlock Text="Select Quality" 
-                              FontSize="16" 
-                              FontWeight="SemiBold" 
-                              Foreground="#1E293B"
-                              Margin="0,0,0,15"/>
-                </StackPanel>
-            </ScrollViewer>
+            <!-- Small downward chevron arrow icon -->
+            <TextBlock Grid.Row="1" 
+                      Text="›" 
+                      FontSize="16" 
+                      Foreground="#8E8E93"
+                      HorizontalAlignment="Center"
+                      Margin="0,0,0,15">
+                <TextBlock.RenderTransform>
+                    <RotateTransform Angle="90" CenterX="8" CenterY="8"/>
+                </TextBlock.RenderTransform>
+            </TextBlock>
             
-            <!-- Buttons -->
-            <Grid Grid.Row="3">
+            <!-- Segmented control tabs -->
+            <Grid Grid.Row="2" Margin="20,0,20,15">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                
-                <Button x:Name="CancelButton"
-                        Grid.Column="0"
-                        Content="Cancel"
-                        Height="45"
-                        FontSize="15"
-                        FontWeight="SemiBold"
-                        Background="#E2E8F0"
-                        Foreground="#475569"
-                        BorderThickness="0"
-                        Margin="0,0,10,0"
-                        Cursor="Hand"
-                        Click="CancelButton_Click">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="12"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
-                
-                <Button x:Name="DownloadButton"
-                        Grid.Column="1"
-                        Content="Download"
-                        Height="45"
-                        FontSize="15"
-                        FontWeight="SemiBold"
-                        Foreground="White"
-                        BorderThickness="0"
-                        Margin="10,0,0,0"
-                        Cursor="Hand"
-                        Click="DownloadButton_Click">
-                    <Button.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#3B82F6" Offset="0"/>
-                            <GradientStop Color="#2563EB" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Button.Background>
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="12"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                <RadioButton x:Name="VideoTab"
+                            Grid.Column="0"
+                            Content="Video"
+                            Style="{StaticResource SegmentedButton}"
+                            GroupName="MediaType"
+                            IsChecked="True"
+                            Checked="VideoTab_Checked"/>
+                <RadioButton x:Name="AudioTab"
+                            Grid.Column="1"
+                            Content="Audio"
+                            Style="{StaticResource SegmentedButton}"
+                            GroupName="MediaType"
+                            Checked="AudioTab_Checked"/>
             </Grid>
+            
+            <!-- Horizontal line divider -->
+            <Border Grid.Row="3" 
+                    Height="1" 
+                    Background="#E5E5EA"
+                    Margin="20,0"/>
+            
+            <!-- Main section: Select video resolution | Download icon | Download -->
+            <Grid Grid.Row="4" Margin="20,15,20,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- Left: "Select video resolution" -->
+                <TextBlock Grid.Column="0"
+                          Text="Select video resolution"
+                          FontSize="17"
+                          FontWeight="Normal"
+                          Foreground="Black"
+                          VerticalAlignment="Center"/>
+                
+                <!-- Download Icon -->
+                <TextBlock Grid.Column="2"
+                          Text="⬇" 
+                          FontSize="16" 
+                          Foreground="#007AFF"
+                          VerticalAlignment="Center"
+                          Margin="0,0,5,0"/>
+                
+                <!-- Right: Blue "Download" text -->
+                <TextBlock Grid.Column="3"
+                          x:Name="DownloadText"
+                          Text="Download"
+                          FontSize="17"
+                          FontWeight="Normal"
+                          Foreground="#007AFF"
+                          VerticalAlignment="Center"
+                          Cursor="Hand"
+                          MouseDown="DownloadButton_Click"/>
+            </Grid>
+            
+            <!-- Expanded dropdown list in white card with light border -->
+            <Border Grid.Row="5" 
+                    Background="White"
+                    BorderBrush="#E5E5EA"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Margin="20,0,20,15">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.08" Color="Black"/>
+                </Border.Effect>
+                <StackPanel x:Name="QualityPanel">
+                    <!-- Resolution rows will be added here -->
+                </StackPanel>
+            </Border>
+            
+            <!-- Hidden title for compatibility -->
+            <TextBlock x:Name="TitleText" Visibility="Collapsed"/>
         </Grid>
     </Border>
 </Window>
