@@ -1,81 +1,157 @@
 <Window x:Class="YouTubeDownloader.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="YouTube Downloader" 
-        Height="720" 
+        Title="YouTube Downloader"
+        Height="720"
         Width="405"
         ResizeMode="NoResize"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent">
-    
-    <Border CornerRadius="40" Background="{DynamicResource BackgroundBrush}">
+
+    <Window.Resources>
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!--  DESIGN TOKENS — all colors live here, nowhere else        -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+
+        <!-- Shared accent (same in both modes) -->
+        <SolidColorBrush x:Key="AccentBrush"      Color="#5B8DEF"/>
+        <SolidColorBrush x:Key="AccentDarkBrush"  Color="#3B6FE0"/>
+        <SolidColorBrush x:Key="SuccessBrush"     Color="#10B981"/>
+        <SolidColorBrush x:Key="DangerBrush"      Color="#EF4444"/>
+
+        <!-- ModernButton style (used by Clear List) -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Height"          Value="44"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                CornerRadius="12"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.72"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ScrollBar style — minimal, barely-there -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width"      Value="4"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border CornerRadius="2"
+                                                        Background="#33000000"
+                                                        Margin="0,2"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--  OUTER SHELL — rounded window with drop shadow                 -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <Border CornerRadius="36" Background="{DynamicResource BackgroundBrush}">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="40" ShadowDepth="0" Opacity="0.5"/>
+            <DropShadowEffect BlurRadius="48" ShadowDepth="0" Opacity="0.45" Color="#000000"/>
         </Border.Effect>
-        
+
         <Grid>
-            <!-- Background Image -->
-            <Border CornerRadius="40" ClipToBounds="True">
+            <!-- Background Image + petals -->
+            <Border CornerRadius="36" ClipToBounds="True">
                 <Grid>
-                    <Image x:Name="BackgroundImage" 
-                           Source="Assets/sakura.jpg" 
+                    <Image x:Name="BackgroundImage"
+                           Source="Assets/sakura.jpg"
                            Stretch="UniformToFill"/>
-                    
-                    <!-- Subtle overlay wash -->
-                    <Border x:Name="BackgroundOverlay" Background="#26000000"/>
-                    
-                    <!-- Animated petals canvas -->
-                    <Canvas x:Name="PetalsCanvas" />
+                    <Border x:Name="BackgroundOverlay" Background="#20000000"/>
+                    <Canvas x:Name="PetalsCanvas"/>
                 </Grid>
             </Border>
-            
-            <!-- Main Content -->
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!--  MAIN CONTENT                                           -->
+            <!-- ═══════════════════════════════════════════════════════ -->
             <Grid x:Name="MainContent">
-                <!-- Top bar: dark mode toggle + window controls -->
-                <Grid VerticalAlignment="Top" Margin="16,14,14,0">
+
+                <!-- Top bar: theme toggle + window controls -->
+                <Grid VerticalAlignment="Top" Margin="18,16,16,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    
-                    <!-- Dark Mode Toggle — minimal icon button -->
-                    <Button Width="34" Height="34"
+
+                    <!-- Theme toggle -->
+                    <Button x:Name="DarkModeToggleButton"
+                            Width="36" Height="36"
                             Cursor="Hand"
-                            ToolTip="Toggle Dark Mode">
+                            ToolTip="Toggle Theme"
+                            Click="DarkModeToggle_Click">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="border"
-                                        Background="#55FFFFFF"
-                                        CornerRadius="17"
-                                        Width="34" Height="34">
+                                        Background="#44FFFFFF"
+                                        CornerRadius="18"
+                                        Width="36" Height="36">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.15"/>
+                                    </Border.Effect>
                                     <TextBlock x:Name="DarkModeIcon"
                                                Text="☀"
-                                               FontSize="16"
+                                               FontSize="17"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                Foreground="White"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="border" Property="Background" Value="#77FFFFFF"/>
+                                        <Setter TargetName="border" Property="Background" Value="#66FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="border" Property="Background" Value="#88FFFFFF"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
                         </Button.Template>
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <EventSetter Event="MouseDown" Handler="DarkModeToggle_Click"/>
-                            </Style>
-                        </Button.Resources>
                     </Button>
-                    
-                    <!-- Window Controls -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+
+                    <!-- Window controls -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Content="−"
-                                Width="28" Height="28"
-                                FontSize="16"
+                                Width="30" Height="30"
+                                FontSize="17"
                                 Foreground="White"
                                 BorderThickness="0"
                                 Click="Minimize_Click"
@@ -83,11 +159,14 @@
                                 ToolTip="Minimize">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border Background="#55000000" CornerRadius="14" x:Name="border">
+                                    <Border Background="#40000000" CornerRadius="15" x:Name="border">
                                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#66000000"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
                                             <Setter TargetName="border" Property="Background" Value="#88000000"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
@@ -95,22 +174,25 @@
                             </Button.Template>
                         </Button>
                         <Button Content="×"
-                                Width="28" Height="28"
-                                FontSize="16"
+                                Width="30" Height="30"
+                                FontSize="17"
                                 Foreground="White"
                                 BorderThickness="0"
-                                Margin="6,0,0,0"
+                                Margin="8,0,0,0"
                                 Click="Close_Click"
                                 Cursor="Hand"
                                 ToolTip="Close">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border Background="#55EF4444" CornerRadius="14" x:Name="border">
+                                    <Border Background="#55EF4444" CornerRadius="15" x:Name="border">
                                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="border" Property="Background" Value="#BBEF4444"/>
+                                            <Setter TargetName="border" Property="Background" Value="#CCEF4444"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#FFEF4444"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -118,43 +200,69 @@
                         </Button>
                     </StackPanel>
                 </Grid>
-                
-                <!-- Centered Glass Card -->
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!--  GLASS CARD                                          -->
+                <!-- ═══════════════════════════════════════════════════ -->
                 <Border x:Name="GlassCard"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center"
-                        Width="340"
-                        Background="#B3FFFFFF"
-                        CornerRadius="24"
-                        Padding="28,32,28,28"
-                        Margin="0,50,0,0">
+                        Width="344"
+                        Background="#C8FFFFFF"
+                        CornerRadius="28"
+                        Padding="28,30,28,26"
+                        Margin="0,52,0,0">
                     <Border.Effect>
-                        <DropShadowEffect BlurRadius="40" ShadowDepth="6" Opacity="0.18" Color="#000000"/>
+                        <DropShadowEffect BlurRadius="48" ShadowDepth="8" Opacity="0.14" Color="#000000"/>
                     </Border.Effect>
-                    
+                    <!-- Glass rim: subtle top highlight line -->
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#60FFFFFF" Offset="0"/>
+                            <GradientStop Color="#10FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <Border.BorderThickness>1</Border.BorderThickness>
+
                     <StackPanel>
-                        <!-- App Title -->
-                        <TextBlock x:Name="AppTitle"
-                                   Text="YouTube Downloader"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Foreground="#1A1A2E"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,0,0,24"/>
-                        
+                        <!-- App title -->
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,22">
+                            <Border Background="#FFEF4444"
+                                    CornerRadius="6"
+                                    Width="26" Height="26"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="▶"
+                                           FontSize="11"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="2,0,0,0"/>
+                            </Border>
+                            <TextBlock x:Name="AppTitle"
+                                       Text="YouTube Downloader"
+                                       FontSize="19"
+                                       FontWeight="Bold"
+                                       Foreground="#1A1D2E"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
                         <!-- URL Input -->
                         <Border x:Name="SearchBorder"
-                                Background="#CCFFFFFF"
+                                Background="#F0F4FF"
                                 CornerRadius="14"
                                 Padding="14,11"
-                                Margin="0,0,0,16">
+                                Margin="0,0,0,14"
+                                BorderThickness="1.5"
+                                BorderBrush="#E2E8F3">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <!-- Search icon via Path -->
-                                <Viewbox Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Viewbox Width="17" Height="17" Margin="0,0,10,0" VerticalAlignment="Center">
                                     <Canvas Width="24" Height="24">
                                         <Path Data="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
                                               Fill="#94A3B8"/>
@@ -169,44 +277,47 @@
                                          Text="Paste YouTube link here…">
                                     <TextBox.Style>
                                         <Style TargetType="TextBox">
-                                            <Setter Property="Foreground" Value="#94A3B8"/>
-                                            <Setter Property="CaretBrush" Value="#1A1A2E"/>
-                                            <EventSetter Event="GotFocus" Handler="UrlTextBox_GotFocus"/>
+                                            <Setter Property="Foreground"  Value="#94A3B8"/>
+                                            <Setter Property="CaretBrush"  Value="#5B8DEF"/>
+                                            <EventSetter Event="GotFocus"  Handler="UrlTextBox_GotFocus"/>
                                             <EventSetter Event="LostFocus" Handler="UrlTextBox_LostFocus"/>
                                         </Style>
                                     </TextBox.Style>
                                 </TextBox>
                             </Grid>
                         </Border>
-                        
+
                         <!-- Download Button -->
-                        <Button Click="DownloadButton_Click"
+                        <Button x:Name="DownloadButton"
+                                Click="DownloadButton_Click"
                                 HorizontalAlignment="Stretch"
-                                Height="44"
+                                Height="46"
                                 Cursor="Hand"
                                 BorderThickness="0"
-                                Margin="0,0,0,20">
+                                Margin="0,0,0,18">
+                            <Button.RenderTransform>
+                                <ScaleTransform x:Name="DownloadBtnScale" ScaleX="1" ScaleY="1" CenterX="172" CenterY="23"/>
+                            </Button.RenderTransform>
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border x:Name="border" CornerRadius="12">
+                                    <Border x:Name="border" CornerRadius="14">
                                         <Border.Background>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.5">
-                                                <GradientStop Color="#4F8CFF" Offset="0"/>
+                                                <GradientStop Color="#6B9FFF" Offset="0"/>
                                                 <GradientStop Color="#3B6FE0" Offset="1"/>
                                             </LinearGradientBrush>
                                         </Border.Background>
                                         <Border.Effect>
-                                            <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.2" Color="#3B6FE0"/>
+                                            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.28" Color="#3B6FE0"/>
                                         </Border.Effect>
                                         <StackPanel Orientation="Horizontal"
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center">
-                                            <!-- Down arrow icon -->
-                                            <Viewbox Width="16" Height="16" Margin="0,0,8,0">
+                                            <Viewbox Width="16" Height="16" Margin="0,0,9,0">
                                                 <Canvas Width="24" Height="24">
                                                     <Path Data="M12 4 L12 16 M12 16 L7 11 M12 16 L17 11 M5 20 L19 20"
                                                           Stroke="White"
-                                                          StrokeThickness="2.2"
+                                                          StrokeThickness="2.5"
                                                           StrokeEndLineCap="Round"
                                                           StrokeStartLineCap="Round"
                                                           StrokeLineJoin="Round"/>
@@ -221,87 +332,103 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                                            <Setter TargetName="border" Property="Opacity" Value="0.92"/>
                                         </Trigger>
                                         <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="border" Property="Opacity" Value="0.75"/>
+                                            <Setter TargetName="border" Property="Opacity" Value="0.80"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        
+
                         <!-- Action Buttons Row -->
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            
+
                             <!-- Downloads Button -->
-                            <Button Grid.Column="1"
-                                    Width="120" Height="44"
+                            <Button Grid.Column="0"
+                                    Height="44"
                                     Click="ShowDownloads_Click"
                                     ToolTip="View Downloads"
                                     Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="border"
-                                                Background="#BBFFFFFF"
-                                                CornerRadius="12">
-                                            <Viewbox Width="22" Height="22">
-                                                <Canvas Width="24" Height="24">
-                                                    <Path x:Name="DownloadIconPath1" Data="M12 3 L12 15 M12 15 L8 11 M12 15 L16 11"
-                                                          Stroke="#475569"
-                                                          StrokeThickness="2"
-                                                          StrokeEndLineCap="Round"
-                                                          StrokeStartLineCap="Round"
-                                                          StrokeLineJoin="Round"/>
-                                                    <Path x:Name="DownloadIconPath2" Data="M4 17 L4 19 C4 20.1 4.9 21 6 21 L18 21 C19.1 21 20 20.1 20 19 L20 17"
-                                                          Stroke="#475569"
-                                                          StrokeThickness="2"
-                                                          StrokeEndLineCap="Round"
-                                                          StrokeStartLineCap="Round"
-                                                          StrokeLineJoin="Round"/>
-                                                </Canvas>
-                                            </Viewbox>
+                                                Background="#EEF2FF"
+                                                CornerRadius="13"
+                                                BorderBrush="#D6E0FF"
+                                                BorderThickness="1">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Viewbox Width="18" Height="18" Margin="0,0,7,0">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M12 3 L12 15 M12 15 L8 11 M12 15 L16 11 M4 17 L4 19 C4 20.1 4.9 21 6 21 L18 21 C19.1 21 20 20.1 20 19 L20 17"
+                                                              Stroke="#5B8DEF"
+                                                              StrokeThickness="2"
+                                                              StrokeEndLineCap="Round"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeLineJoin="Round"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock Text="Downloads"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#5B8DEF"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="#1A000000"/>
+                                                <Setter TargetName="border" Property="Background" Value="#DDE5FF"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#C8D5FF"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            
+
                             <!-- Folder Button -->
-                            <Button Grid.Column="3"
-                                    Width="120" Height="44"
+                            <Button Grid.Column="2"
+                                    Height="44"
                                     Click="OpenFolder_Click"
                                     ToolTip="Open Downloads Folder"
                                     Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="border"
-                                                Background="#BBFFFFFF"
-                                                CornerRadius="12">
-                                            <Viewbox Width="22" Height="22">
-                                                <Canvas Width="24" Height="24">
-                                                    <Path x:Name="FolderIconPath" Data="M3 7 C3 5.9 3.9 5 5 5 L9 5 L11 7 L19 7 C20.1 7 21 7.9 21 9 L21 18 C21 19.1 20.1 20 19 20 L5 20 C3.9 20 3 19.1 3 18 Z"
-                                                          Stroke="#475569"
-                                                          StrokeThickness="2"
-                                                          Fill="Transparent"
-                                                          StrokeLineJoin="Round"/>
-                                                </Canvas>
-                                            </Viewbox>
+                                                Background="#F0FDF4"
+                                                CornerRadius="13"
+                                                BorderBrush="#C6F0D8"
+                                                BorderThickness="1">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Viewbox Width="18" Height="18" Margin="0,0,7,0">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M3 7 C3 5.9 3.9 5 5 5 L9 5 L11 7 L19 7 C20.1 7 21 7.9 21 9 L21 18 C21 19.1 20.1 20 19 20 L5 20 C3.9 20 3 19.1 3 18 Z"
+                                                              Stroke="#10B981"
+                                                              StrokeThickness="2"
+                                                              Fill="Transparent"
+                                                              StrokeLineJoin="Round"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock Text="Open Folder"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#10B981"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="#1A000000"/>
+                                                <Setter TargetName="border" Property="Background" Value="#DCFCE7"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#BBF7D0"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -311,25 +438,35 @@
                     </StackPanel>
                 </Border>
             </Grid>
-            
-            <!-- Downloads Panel (Hidden by default) -->
-            <Border x:Name="DownloadsPanel" 
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!--  DOWNLOADS PANEL                                        -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <Border x:Name="DownloadsPanel"
                     Background="{DynamicResource PanelBgBrush}"
-                    CornerRadius="40"
+                    CornerRadius="36"
                     RenderTransform="1,0,0,1,405,0"
                     ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>  <!-- Header -->
+                        <RowDefinition Height="Auto"/>  <!-- Tabs -->
+                        <RowDefinition Height="*"/>     <!-- List -->
+                        <RowDefinition Height="Auto"/>  <!-- Footer -->
                     </Grid.RowDefinitions>
-                    
-                    <!-- Downloads Header -->
-                    <Border x:Name="DownloadsHeaderBorder" Grid.Row="0" Background="#F0F2F5" Padding="20,24,20,16">
+
+                    <!-- Header -->
+                    <Border x:Name="DownloadsHeaderBorder"
+                            Grid.Row="0"
+                            Padding="20,22,20,16">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#FAFBFF" Offset="0"/>
+                                <GradientStop Color="#F2F5FC" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="6" ShadowDepth="2" Opacity="0.08" Color="#000000" Direction="270"/>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.06" Color="#000000" Direction="270"/>
                         </Border.Effect>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -337,58 +474,79 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+
+                            <!-- Back button -->
                             <Button x:Name="BackButton"
-                                    Width="48" Height="48"
+                                    Width="40" Height="40"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Click="HideDownloads_Click"
                                     Cursor="Hand"
                                     ToolTip="Back"
-                                    Padding="10"
                                     VerticalAlignment="Center">
-                                <Viewbox Width="24" Height="24">
-                                    <Canvas Width="24" Height="24">
-                                        <Path x:Name="BackArrowPath"
-                                              Data="M15 4 L7 12 L15 20"
-                                              Stroke="#94A3B8"
-                                              StrokeThickness="2.8"
-                                              StrokeEndLineCap="Round"
-                                              StrokeStartLineCap="Round"
-                                              StrokeLineJoin="Round"/>
-                                    </Canvas>
-                                </Viewbox>
-                            </Button>
-                            <TextBlock x:Name="DownloadsTitle" Grid.Column="1" 
-                                       Text="Downloads" 
-                                       FontSize="24" 
-                                       FontWeight="SemiBold"
-                                       Foreground="#1E293B"
-                                       VerticalAlignment="Center"
-                                       Margin="12,0,0,0"/>
-                            <!-- Settings Button -->
-                            <Button Grid.Column="2"
-                                    Width="42"
-                                    Height="42"
-                                    Click="DownloadSettings_Click"
-                                    Cursor="Hand"
-                                    ToolTip="Download Settings">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border x:Name="SettingsBorder" Background="#E2E8F0" 
-                                                CornerRadius="12">
+                                        <Border x:Name="b" Background="Transparent" CornerRadius="12">
                                             <Viewbox Width="22" Height="22">
                                                 <Canvas Width="24" Height="24">
-                                                    <Path x:Name="SettingsGearIcon" Data="M12 8C9.79 8 8 9.79 8 12C8 14.21 9.79 16 12 16C14.21 16 16 14.21 16 12C16 9.79 14.21 8 12 8ZM12 14C10.9 14 10 13.1 10 12C10 10.9 10.9 10 12 10C13.1 10 14 10.9 14 12C14 13.1 13.1 14 12 14ZM19.43 12.98C19.47 12.66 19.5 12.34 19.5 12C19.5 11.66 19.47 11.34 19.43 11.02L21.54 9.37C21.73 9.22 21.78 8.95 21.66 8.73L19.66 5.27C19.54 5.05 19.27 4.97 19.05 5.05L16.56 6.05C16.04 5.65 15.48 5.32 14.87 5.07L14.49 2.42C14.46 2.18 14.25 2 14 2L10 2C9.75 2 9.54 2.18 9.51 2.42L9.13 5.07C8.52 5.32 7.96 5.66 7.44 6.05L4.95 5.05C4.72 4.96 4.46 5.05 4.34 5.27L2.34 8.73C2.21 8.95 2.27 9.22 2.46 9.37L4.57 11.02C4.53 11.34 4.5 11.67 4.5 12C4.5 12.33 4.53 12.66 4.57 12.98L2.46 14.63C2.27 14.78 2.22 15.05 2.34 15.27L4.34 18.73C4.46 18.95 4.73 19.03 4.95 18.95L7.44 17.95C7.96 18.35 8.52 18.68 9.13 18.93L9.51 21.58C9.54 21.82 9.75 22 10 22L14 22C14.25 22 14.46 21.82 14.49 21.58L14.87 18.93C15.48 18.68 16.04 18.34 16.56 17.95L19.05 18.95C19.28 19.04 19.54 18.95 19.66 18.73L21.66 15.27C21.78 15.05 21.73 14.78 21.54 14.63L19.43 12.98Z" 
-                                                          Fill="#3B82F6"/>
+                                                    <Path x:Name="BackArrowPath"
+                                                          Data="M15 4 L7 12 L15 20"
+                                                          Stroke="#94A3B8"
+                                                          StrokeThickness="2.8"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeLineJoin="Round"/>
                                                 </Canvas>
                                             </Viewbox>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="SettingsBorder" Property="Background" Value="#CBD5E1"/>
+                                                <Setter TargetName="b" Property="Background" Value="#0F5B8DEF"/>
+                                                <Setter TargetName="BackArrowPath" Property="Stroke" Value="#5B8DEF"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+
+                            <TextBlock x:Name="DownloadsTitle"
+                                       Grid.Column="1"
+                                       Text="Downloads"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       Foreground="#1E293B"
+                                       VerticalAlignment="Center"
+                                       Margin="10,0,0,0"/>
+
+                            <!-- Settings button -->
+                            <Button Grid.Column="2"
+                                    Width="40" Height="40"
+                                    Click="DownloadSettings_Click"
+                                    Cursor="Hand"
+                                    ToolTip="Settings"
+                                    VerticalAlignment="Center">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="SettingsBorder"
+                                                Background="#EEF2FF"
+                                                CornerRadius="12">
+                                            <Viewbox Width="20" Height="20"
+                                                     RenderTransformOrigin="0.5,0.5">
+                                                <Viewbox.RenderTransform>
+                                                    <RotateTransform x:Name="SettingsRotation" Angle="0"/>
+                                                </Viewbox.RenderTransform>
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M12 8C9.79 8 8 9.79 8 12C8 14.21 9.79 16 12 16C14.21 16 16 14.21 16 12C16 9.79 14.21 8 12 8ZM12 14C10.9 14 10 13.1 10 12C10 10.9 10.9 10 12 10C13.1 10 14 10.9 14 12C14 13.1 13.1 14 12 14ZM19.43 12.98C19.47 12.66 19.5 12.34 19.5 12C19.5 11.66 19.47 11.34 19.43 11.02L21.54 9.37C21.73 9.22 21.78 8.95 21.66 8.73L19.66 5.27C19.54 5.05 19.27 4.97 19.05 5.05L16.56 6.05C16.04 5.65 15.48 5.32 14.87 5.07L14.49 2.42C14.46 2.18 14.25 2 14 2L10 2C9.75 2 9.54 2.18 9.51 2.42L9.13 5.07C8.52 5.32 7.96 5.66 7.44 6.05L4.95 5.05C4.72 4.96 4.46 5.05 4.34 5.27L2.34 8.73C2.21 8.95 2.27 9.22 2.46 9.37L4.57 11.02C4.53 11.34 4.5 11.67 4.5 12C4.5 12.33 4.53 12.66 4.57 12.98L2.46 14.63C2.27 14.78 2.22 15.05 2.34 15.27L4.34 18.73C4.46 18.95 4.73 19.03 4.95 18.95L7.44 17.95C7.96 18.35 8.52 18.68 9.13 18.93L9.51 21.58C9.54 21.82 9.75 22 10 22L14 22C14.25 22 14.46 21.82 14.49 21.58L14.87 18.93C15.48 18.68 16.04 18.34 16.56 17.95L19.05 18.95C19.28 19.04 19.54 18.95 19.66 18.73L21.66 15.27C21.78 15.05 21.73 14.78 21.54 14.63L19.43 12.98Z"
+                                                          Fill="#5B8DEF"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="SettingsBorder" Property="Background" Value="#DDE5FF"/>
                                             </Trigger>
                                             <Trigger Property="IsPressed" Value="True">
-                                                <Setter TargetName="SettingsBorder" Property="Background" Value="#B0BCC9"/>
+                                                <Setter TargetName="SettingsBorder" Property="Background" Value="#C8D5FF"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -396,105 +554,127 @@
                             </Button>
                         </Grid>
                     </Border>
-                    
-                    <!-- Tabs -->
-                    <Border x:Name="TabsContainerBorder" Grid.Row="1" 
-                            Background="#E8ECF1" 
-                            CornerRadius="15" 
-                            Margin="15,15,15,10"
+
+                    <!-- Tab Selector -->
+                    <Border x:Name="TabsContainerBorder"
+                            Grid.Row="1"
+                            Background="#EDF0F7"
+                            CornerRadius="14"
+                            Margin="16,14,16,10"
                             Padding="4"
-                            BorderBrush="#D1D5DB"
+                            BorderBrush="#D8DCE8"
                             BorderThickness="1">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            
+
+                            <!-- Sliding active pill (positioned by code) -->
+                            <Border x:Name="TabPill"
+                                    Grid.ColumnSpan="2"
+                                    Background="White"
+                                    CornerRadius="10"
+                                    Width="170"
+                                    Margin="0"
+                                    VerticalAlignment="Stretch"
+                                    HorizontalAlignment="Left"
+                                    IsHitTestVisible="False">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.10"/>
+                                </Border.Effect>
+                            </Border>
+
                             <!-- All Tab -->
-                            <Border Background="Transparent" CornerRadius="12" Padding="8,8,8,4"
+                            <Border Background="Transparent" CornerRadius="10"
                                     MouseLeftButtonDown="AllTab_Click" Cursor="Hand">
-                                <StackPanel HorizontalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                                        <!-- Download-into-box icon -->
-                                        <Viewbox Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center">
-                                            <Canvas Width="24" Height="24">
-                                                <Path x:Name="AllTabIcon" 
-                                                      Data="M12 3 L12 15 M12 15 L8 11 M12 15 L16 11 M4 17 L4 19 C4 20.1 4.9 21 6 21 L18 21 C19.1 21 20 20.1 20 19 L20 17"
-                                                      Stroke="#3B82F6"
-                                                      StrokeThickness="2"
-                                                      StrokeEndLineCap="Round"
-                                                      StrokeStartLineCap="Round"
-                                                      StrokeLineJoin="Round"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                        <TextBlock x:Name="AllTabText" Text="All" FontSize="15" FontWeight="SemiBold" 
-                                                   Foreground="#3B82F6" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <Border x:Name="AllTabUnderline" Height="3" Background="#3B82F6" CornerRadius="1.5" 
-                                            HorizontalAlignment="Stretch"/>
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,9">
+                                    <Viewbox Width="15" Height="15" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="AllTabIcon"
+                                                  Data="M12 3 L12 15 M12 15 L8 11 M12 15 L16 11 M4 17 L4 19 C4 20.1 4.9 21 6 21 L18 21 C19.1 21 20 20.1 20 19 L20 17"
+                                                  Stroke="#5B8DEF"
+                                                  StrokeThickness="2.2"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeLineJoin="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="AllTabText"
+                                               Text="All"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#5B8DEF"
+                                               VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            
+
                             <!-- Downloaded Tab -->
-                            <Border Grid.Column="1" Background="Transparent" CornerRadius="12" Padding="8,8,8,4"
+                            <Border Grid.Column="1" Background="Transparent" CornerRadius="10"
                                     MouseLeftButtonDown="DownloadedTab_Click" Cursor="Hand">
-                                <StackPanel HorizontalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                                        <!-- Checkmark icon -->
-                                        <Viewbox Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center">
-                                            <Canvas Width="24" Height="24">
-                                                <Path x:Name="DownloadedTabIcon"
-                                                      Data="M5 13 L9 17 L19 7"
-                                                      Stroke="#6B7280"
-                                                      StrokeThickness="2.5"
-                                                      StrokeEndLineCap="Round"
-                                                      StrokeStartLineCap="Round"
-                                                      StrokeLineJoin="Round"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                        <TextBlock x:Name="DownloadedTabText" Text="Downloaded" FontSize="15" FontWeight="SemiBold" 
-                                                   Foreground="#6B7280" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <Border x:Name="DownloadedTabUnderline" Height="3" Background="Transparent" CornerRadius="1.5" 
-                                            HorizontalAlignment="Stretch"/>
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,9">
+                                    <Viewbox Width="15" Height="15" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="DownloadedTabIcon"
+                                                  Data="M5 13 L9 17 L19 7"
+                                                  Stroke="#9CA3AF"
+                                                  StrokeThickness="2.5"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeLineJoin="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="DownloadedTabText"
+                                               Text="Completed"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#9CA3AF"
+                                               VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
                     </Border>
-                    
+
                     <!-- Downloads List -->
-                    <ScrollViewer Grid.Row="2" 
+                    <ScrollViewer Grid.Row="2"
                                   VerticalScrollBarVisibility="Auto"
-                                  Margin="15,0,15,0">
-                        <StackPanel x:Name="DownloadsList">
-                            <!-- Download items will be added here dynamically -->
-                        </StackPanel>
+                                  Margin="14,0,14,0">
+                        <StackPanel x:Name="DownloadsList" Margin="0,4,0,8"/>
                     </ScrollViewer>
-                    
-                    <!-- Bottom Actions -->
-                    <Border Grid.Row="3" 
-                            Background="#CCFFFFFF" 
-                            BorderBrush="#80E2E8F0"
-                            BorderThickness="0,1,0,0"
-                            Padding="15">
-                        <Button Content="🗑️ Clear List"
-                                Background="Transparent"
-                                Foreground="#3B82F6"
-                                BorderBrush="#3B82F6"
-                                BorderThickness="2"
+
+                    <!-- Footer -->
+                    <Border Grid.Row="3"
+                            Padding="16,12">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#F8FAFF" Offset="0"/>
+                                <GradientStop Color="#F2F5FC" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#E2E8F0"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>0,1,0,0</Border.BorderThickness>
+                        <Button Content="🗑  Clear List"
+                                Background="#FEE2E2"
+                                Foreground="#EF4444"
+                                BorderThickness="0"
                                 Style="{StaticResource ModernButton}"
                                 HorizontalAlignment="Stretch"
                                 Click="ClearList_Click"/>
                     </Border>
                 </Grid>
             </Border>
-            
 
-            <!-- Quality Selection Overlay (iOS Bottom Sheet Style) -->
-            <!-- Quality Selection Overlay (iOS Bottom Sheet Style) -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!--  QUALITY SELECTION OVERLAY                              -->
+            <!-- ═══════════════════════════════════════════════════════ -->
             <Border x:Name="QualityOverlay"
-                    Background="#99000000"
+                    Background="#88000000"
                     Visibility="Collapsed"
                     MouseDown="QualityOverlay_MouseDown">
                 <Grid>
@@ -502,162 +682,294 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Background="White"
-                            CornerRadius="24"
-                            Width="360"
+                            CornerRadius="22"
+                            Width="362"
                             MaxHeight="600"
-                            Margin="20">
+                            Margin="18">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="30" ShadowDepth="8" Opacity="0.3"/>
+                            <DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.22"/>
                         </Border.Effect>
                         <Grid Margin="0">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/> <!-- Header -->
-                                <RowDefinition Height="Auto"/> <!-- Video Info -->
-                                <RowDefinition Height="Auto"/> <!-- Tabs -->
-                                <RowDefinition Height="*"/>    <!-- List -->
-                                <RowDefinition Height="Auto"/> <!-- Button -->
+                                <RowDefinition Height="Auto"/>  <!-- Header -->
+                                <RowDefinition Height="Auto"/>  <!-- Video info -->
+                                <RowDefinition Height="Auto"/>  <!-- Tabs -->
+                                <RowDefinition Height="Auto"/>  <!-- Subtitle search -->
+                                <RowDefinition Height="*"/>     <!-- List -->
+                                <RowDefinition Height="Auto"/>  <!-- Button -->
                             </Grid.RowDefinitions>
-                            
+
                             <!-- Header -->
-                            <Grid Grid.Row="0" Margin="20,20,20,10">
+                            <Grid Grid.Row="0" Margin="20,18,20,10">
                                 <TextBlock x:Name="QualityHeaderText"
-                                          Text="Select Quality"
-                                          FontSize="18"
-                                          FontWeight="SemiBold"
-                                          Foreground="#1A1A2E"
-                                          HorizontalAlignment="Center"/>
+                                           Text="Select Quality"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Foreground="#1A1D2E"
+                                           HorizontalAlignment="Center"/>
                                 <Button x:Name="QualityCloseButton"
-                                       Content="✕"
-                                       HorizontalAlignment="Right"
-                                       Width="30"
-                                       Height="30"
-                                       FontSize="16"
-                                       Background="Transparent"
-                                       BorderThickness="0"
-                                       Foreground="#666"
-                                       Cursor="Hand"
-                                       Click="CloseQualitySelector_Click"/>
+                                        Content="✕"
+                                        HorizontalAlignment="Right"
+                                        Width="30" Height="30"
+                                        FontSize="15"
+                                        Background="#F1F5F9"
+                                        BorderThickness="0"
+                                        Foreground="#64748B"
+                                        Cursor="Hand"
+                                        Click="CloseQualitySelector_Click">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="b" Background="#F1F5F9" CornerRadius="8">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="b" Property="Background" Value="#E2E8F0"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
                             </Grid>
-                            
-                            <!-- Video Info -->
-                            <StackPanel Grid.Row="1" Margin="20,0,20,15">
-                                <!-- Thumbnail with Duration -->
-                                <Grid Height="140" Margin="0,0,0,12">
+
+                            <!-- Video info -->
+                            <StackPanel Grid.Row="1" Margin="20,0,20,14">
+                                <Grid Height="136" Margin="0,0,0,12">
                                     <Border CornerRadius="12" ClipToBounds="True">
-                                        <Image x:Name="QualityThumbnail" 
-                                               Stretch="UniformToFill"/>
+                                        <Image x:Name="QualityThumbnail" Stretch="UniformToFill"/>
                                     </Border>
+                                    <!-- Duration badge -->
                                     <Border Background="#CC000000"
-                                            CornerRadius="4"
+                                            CornerRadius="5"
                                             HorizontalAlignment="Left"
                                             VerticalAlignment="Bottom"
                                             Margin="8"
-                                            Padding="6,2">
+                                            Padding="7,2">
                                         <TextBlock x:Name="QualityDuration"
-                                                   Text="12:04"
+                                                   Text="0:00"
                                                    Foreground="White"
                                                    FontSize="12"
                                                    FontWeight="Medium"/>
                                     </Border>
                                 </Grid>
-                                
                                 <TextBlock x:Name="QualityVideoTitle"
-                                          Text="Video Title"
-                                          FontSize="14"
-                                          FontWeight="Medium"
-                                          Foreground="#1F2937"
-                                          TextWrapping="Wrap"
-                                          MaxHeight="40"
-                                          TextTrimming="CharacterEllipsis"
-                                          Margin="0,0,0,4"/>
-                                          
+                                           Text="Video Title"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#1F2937"
+                                           TextWrapping="Wrap"
+                                           MaxHeight="40"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="0,0,0,3"/>
                                 <TextBlock x:Name="QualityChannelInfo"
-                                          Text="Channel • 12 min"
-                                          FontSize="12"
-                                          Foreground="#6B7280"
-                                          TextTrimming="CharacterEllipsis"
-                                          Margin="0,0,0,0"/>
+                                           Text="Channel"
+                                           FontSize="12"
+                                           Foreground="#6B7280"
+                                           TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
-                            
-                            <!-- Custom Tab Selector -->
+
+                            <!-- Tabs -->
                             <Border x:Name="QualityTabContainer"
-                                    Grid.Row="2" 
-                                    Margin="20,0,20,15"
-                                    Background="#F3F4F6"
-                                    CornerRadius="8"
-                                    Padding="2">
+                                    Grid.Row="2"
+                                    Margin="20,0,20,14"
+                                    Background="#F1F5F9"
+                                    CornerRadius="10"
+                                    Padding="3">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    
+
                                     <Button x:Name="VideoFormatTab"
-                                            Content="📹 Video"
+                                            Content="Video"
                                             Background="White"
                                             Foreground="#1F2937"
                                             BorderThickness="0"
                                             Height="32"
-                                            FontSize="13"
-                                            FontWeight="Medium"
-                                            Click="VideoFormatTab_Click">
-                                        <Button.Resources>
-                                            <Style TargetType="Border">
-                                                <Setter Property="CornerRadius" Value="6"/>
-                                            </Style>
-                                        </Button.Resources>
-                                        <Button.Effect>
-                                            <DropShadowEffect ShadowDepth="1" BlurRadius="2" Opacity="0.1"/>
-                                        </Button.Effect>
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Click="VideoFormatTab_Click"
+                                            Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="7">
+                                                    <Border.Effect>
+                                                        <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.10"/>
+                                                    </Border.Effect>
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Opacity" Value="0.85"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
                                     </Button>
-                                    
+
                                     <Button x:Name="AudioFormatTab"
                                             Grid.Column="1"
-                                            Content="🎵 Audio"
+                                            Content="Audio"
                                             Background="Transparent"
                                             Foreground="#6B7280"
                                             BorderThickness="0"
                                             Height="32"
-                                            FontSize="13"
+                                            FontSize="12"
                                             FontWeight="Medium"
-                                            Click="AudioFormatTab_Click"/>
+                                            Click="AudioFormatTab_Click"
+                                            Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="7">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="#0F000000"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+
+                                    <Button x:Name="ThumbnailTab"
+                                            Grid.Column="2"
+                                            Content="Thumb"
+                                            Background="Transparent"
+                                            Foreground="#6B7280"
+                                            BorderThickness="0"
+                                            Height="32"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Click="ThumbnailTab_Click"
+                                            Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="7">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="#0F000000"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+
+                                    <Button x:Name="SubtitleTab"
+                                            Grid.Column="3"
+                                            Content="Subs"
+                                            Background="Transparent"
+                                            Foreground="#6B7280"
+                                            BorderThickness="0"
+                                            Height="32"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Click="SubtitleTab_Click"
+                                            Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="7">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="#0F000000"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
                                 </Grid>
                             </Border>
-                            
-                            <!-- Quality List -->
-                            <ScrollViewer Grid.Row="3" 
-                                        VerticalScrollBarVisibility="Auto"
-                                        Margin="0,0,0,15"
-                                        MaxHeight="200">
+
+                            <!-- Subtitle search box -->
+                            <Border x:Name="SubtitleSearchContainer"
+                                    Grid.Row="3"
+                                    Margin="20,0,20,10"
+                                    Background="#F3F4F6"
+                                    CornerRadius="9"
+                                    Padding="8,4"
+                                    Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍" VerticalAlignment="Center" Margin="4,0,8,0" Foreground="#9CA3AF"/>
+                                    <TextBox x:Name="SubtitleSearchBox"
+                                             Grid.Column="1"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FontSize="13"
+                                             Foreground="#374151"
+                                             Padding="0,6"
+                                             TextChanged="SubtitleSearchBox_TextChanged"/>
+                                    <TextBlock Text="Search language…"
+                                               Grid.Column="1"
+                                               IsHitTestVisible="False"
+                                               VerticalAlignment="Center"
+                                               Foreground="#9CA3AF"
+                                               Margin="2,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Text, ElementName=SubtitleSearchBox}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+
+                            <!-- Quality list -->
+                            <ScrollViewer Grid.Row="4"
+                                          VerticalScrollBarVisibility="Auto"
+                                          Margin="0,0,0,14"
+                                          MaxHeight="210">
                                 <StackPanel x:Name="QualityListPanel" Margin="20,0,20,0"/>
                             </ScrollViewer>
-                            
-                            <!-- Download Button -->
-                            <Button Grid.Row="4"
-                                   x:Name="QualityDownloadButton"
-                                   Click="QualityDownload_Click"
-                                   Height="44"
-                                   Margin="20,0,20,20"
-                                   Cursor="Hand"
-                                   BorderThickness="0">
+
+                            <!-- Download button -->
+                            <Button Grid.Row="5"
+                                    x:Name="QualityDownloadButton"
+                                    Click="QualityDownload_Click"
+                                    Height="48"
+                                    Margin="20,0,20,20"
+                                    Cursor="Hand"
+                                    BorderThickness="0">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border x:Name="border"
-                                                CornerRadius="22"
-                                                Background="#1A73E8">
+                                        <Border x:Name="border" CornerRadius="24">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.5">
+                                                    <GradientStop Color="#6B9FFF" Offset="0"/>
+                                                    <GradientStop Color="#3B6FE0" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.24" Color="#3B6FE0"/>
+                                            </Border.Effect>
                                             <TextBlock Text="Download"
-                                                      Foreground="White"
-                                                      FontSize="16"
-                                                      FontWeight="SemiBold"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"/>
+                                                       Foreground="White"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="#1557B0"/>
+                                                <Setter TargetName="border" Property="Opacity" Value="0.90"/>
                                             </Trigger>
                                             <Trigger Property="IsPressed" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="#0D47A1"/>
+                                                <Setter TargetName="border" Property="Opacity" Value="0.78"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -667,112 +979,93 @@
                     </Border>
                 </Grid>
             </Border>
-            
-            <!-- Loading Overlay — Sakura Cherry Blossom Theme -->
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!--  LOADING OVERLAY                                        -->
+            <!-- ═══════════════════════════════════════════════════════ -->
             <Border x:Name="LoadingOverlay"
                     Visibility="Collapsed"
-                    CornerRadius="40"
+                    CornerRadius="36"
                     ClipToBounds="True">
                 <Border.Background>
                     <SolidColorBrush x:Name="LoadingOverlayBg" Color="#88000000"/>
                 </Border.Background>
                 <Grid>
-                    <!-- Animated petals canvas (inside the overlay) -->
                     <Canvas x:Name="LoadingPetalsCanvas" IsHitTestVisible="False"/>
-                    
+
                     <Border x:Name="LoadingCard"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
-                            Width="280"
+                            Width="272"
                             CornerRadius="24"
-                            Padding="28,32,28,28"
+                            Padding="28,30,28,28"
                             ClipToBounds="True">
                         <Border.Background>
-                            <SolidColorBrush x:Name="LoadingCardBg" Color="#F4FFFAFB"/>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#FFFEFF" Offset="0"/>
+                                <GradientStop Color="#FEF6F8" Offset="1"/>
+                            </LinearGradientBrush>
                         </Border.Background>
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="30" ShadowDepth="6" Opacity="0.18" Color="#806060"/>
+                            <DropShadowEffect BlurRadius="36" ShadowDepth="8" Opacity="0.20" Color="#806070"/>
                         </Border.Effect>
-                        <Grid>
-                            <!-- Decorative petals in top-left corner -->
-                            <Canvas IsHitTestVisible="False"
-                                    VerticalAlignment="Top" HorizontalAlignment="Left"
-                                    Margin="-10,-10,0,0" Opacity="0.08">
-                                <Path Data="M12 2 C12 2 8 8 2 10 C8 10 12 14 12 20 C12 14 16 10 22 10 C16 8 12 2 12 2Z"
-                                      Fill="#D4A0AA" Canvas.Left="0" Canvas.Top="5"
-                                      RenderTransform="0.8,0,0,0.8,0,0"/>
-                                <Path Data="M12 2 C12 2 8 8 2 10 C8 10 12 14 12 20 C12 14 16 10 22 10 C16 8 12 2 12 2Z"
-                                      Fill="#CCAAB0" Canvas.Left="18" Canvas.Top="-2"
-                                      RenderTransform="0.5,0,0,0.5,0,0"/>
-                            </Canvas>
-                            <!-- Decorative petals in bottom-right corner -->
-                            <Canvas IsHitTestVisible="False" Opacity="0.06"
-                                    VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                                    Margin="0,0,-8,-8">
-                                <Path Data="M12 2 C12 2 8 8 2 10 C8 10 12 14 12 20 C12 14 16 10 22 10 C16 8 12 2 12 2Z"
-                                      Fill="#D4A0AA" Canvas.Left="-20" Canvas.Top="-15"
-                                      RenderTransform="0.7,0,0,0.7,0,0"/>
-                            </Canvas>
-                            
-                            <StackPanel HorizontalAlignment="Center">
-                                <!-- Sakura spinning ring -->
-                                <Grid Width="56" Height="56" Margin="0,0,0,18"
-                                      HorizontalAlignment="Center">
-                                    <!-- Background ring track -->
-                                    <Ellipse Width="56" Height="56"
-                                             StrokeThickness="4"
-                                             x:Name="LoadingRingBg">
-                                        <Ellipse.Stroke>
-                                            <SolidColorBrush Color="#F0E0E4"/>
-                                        </Ellipse.Stroke>
-                                    </Ellipse>
-                                    <!-- Spinning sakura gradient ring -->
-                                    <Ellipse Width="56" Height="56"
-                                             StrokeThickness="4"
-                                             x:Name="LoadingRingFg"
-                                             RenderTransformOrigin="0.5,0.5"
-                                             StrokeDashArray="2.5 4"
-                                             StrokeDashCap="Round">
-                                        <Ellipse.Stroke>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                <GradientStop Color="#E8A0B0" Offset="0"/>
-                                                <GradientStop Color="#D4889A" Offset="0.5"/>
-                                                <GradientStop Color="#C0707E" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Ellipse.Stroke>
-                                        <Ellipse.RenderTransform>
-                                            <RotateTransform x:Name="LoadingSpinnerRotation" Angle="0"/>
-                                        </Ellipse.RenderTransform>
-                                    </Ellipse>
-                                    <!-- Cherry blossom icon in center -->
-                                    <TextBlock Text="🌸" FontSize="20"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               x:Name="LoadingCenterIcon"/>
-                                </Grid>
-                                <!-- Loading message -->
-                                <TextBlock x:Name="LoadingMessageText"
-                                           Text="Fetching video information…"
-                                           FontSize="14"
-                                           FontWeight="Medium"
+                        <StackPanel HorizontalAlignment="Center">
+                            <!-- Spinner -->
+                            <Grid Width="60" Height="60"
+                                  Margin="0,0,0,18"
+                                  HorizontalAlignment="Center">
+                                <!-- Track ring -->
+                                <Ellipse Width="60" Height="60"
+                                         StrokeThickness="5"
+                                         x:Name="LoadingRingBg">
+                                    <Ellipse.Stroke>
+                                        <SolidColorBrush Color="#F0DDE4"/>
+                                    </Ellipse.Stroke>
+                                </Ellipse>
+                                <!-- Spinning arc -->
+                                <Ellipse Width="60" Height="60"
+                                         StrokeThickness="5"
+                                         x:Name="LoadingRingFg"
+                                         RenderTransformOrigin="0.5,0.5"
+                                         StrokeDashArray="2.8 4.5"
+                                         StrokeDashCap="Round">
+                                    <Ellipse.Stroke>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#E8A0B4" Offset="0"/>
+                                            <GradientStop Color="#C0607C" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Ellipse.Stroke>
+                                    <Ellipse.RenderTransform>
+                                        <RotateTransform x:Name="LoadingSpinnerRotation" Angle="0"/>
+                                    </Ellipse.RenderTransform>
+                                </Ellipse>
+                                <!-- Center icon -->
+                                <TextBlock Text="🌸" FontSize="22"
                                            HorizontalAlignment="Center"
-                                           TextAlignment="Center">
-                                    <TextBlock.Foreground>
-                                        <SolidColorBrush x:Name="LoadingTextFg" Color="#3D2B35"/>
-                                    </TextBlock.Foreground>
-                                </TextBlock>
-                                <!-- Subtle hint -->
-                                <TextBlock Text="This may take a moment"
-                                           FontSize="11"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,6,0,0"
-                                           x:Name="LoadingSubText">
-                                    <TextBlock.Foreground>
-                                        <SolidColorBrush Color="#B0959E"/>
-                                    </TextBlock.Foreground>
-                                </TextBlock>
-                            </StackPanel>
-                        </Grid>
+                                           VerticalAlignment="Center"
+                                           x:Name="LoadingCenterIcon"/>
+                            </Grid>
+                            <!-- Message -->
+                            <TextBlock x:Name="LoadingMessageText"
+                                       Text="Fetching video information…"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush x:Name="LoadingTextFg" Color="#2D1B25"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                            <TextBlock Text="This may take a moment"
+                                       FontSize="12"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,6,0,0"
+                                       x:Name="LoadingSubText">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="#C0959E"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </StackPanel>
                     </Border>
                 </Grid>
             </Border>

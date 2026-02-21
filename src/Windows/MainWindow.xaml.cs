@@ -1,9 +1,16 @@
+// Main Window - This is the main UI window for the YouTube Downloader
+// I organized the code into folders to make it cleaner!
+// - Models: VideoInfo, FormatInfo, DownloadItem (data classes)
+// - Helpers: FileHelper, YtDlpHelper (utility functions)
+// - Windows: This file and VideoPreviewDialog (UI code)
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -42,9 +49,12 @@ namespace YouTubeDownloader
         private List<FormatInfo>? _currentFormats;
         private FormatInfo? _selectedFormat;
         private string _selectedAudioFormat = "m4a"; // Default to m4a, can be "mp3"
+        private ThumbnailInfo? _selectedThumbnail;
+        private SubtitleInfo? _selectedSubtitle;
+        private string? _currentUrl;
         
         // Dark mode state
-        private bool _isDarkMode = false;
+        private bool _isDarkMode = true;
         private bool _showOnlyCompleted = false;
 
         public MainWindow()
@@ -70,7 +80,7 @@ namespace YouTubeDownloader
             LoadSettings();
             
             // Set downloads history path
-            _downloadsHistoryPath = Path.Combine(_downloadFolder, "downloads_history.json");
+            _downloadsHistoryPath = Path.Combine(_downloadFolder ?? "", "downloads_history.json");
             
             // Check if yt-dlp exists
             CheckYtDlp();
@@ -264,6 +274,8 @@ namespace YouTubeDownloader
                     ? new SolidColorBrush(Color.FromRgb(230, 230, 230))
                     : new SolidColorBrush(Color.FromRgb(26, 26, 46));
             }
+            // Animate focus ring: border turns accent blue
+            SearchBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(91, 141, 239));
         }
 
         private void UrlTextBox_LostFocus(object sender, RoutedEventArgs e)
@@ -273,15 +285,31 @@ namespace YouTubeDownloader
                 UrlTextBox.Text = "Paste YouTube link here\u2026";
                 UrlTextBox.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
             }
+            // Restore border
+            SearchBorder.BorderBrush = _isDarkMode
+                ? new SolidColorBrush(Color.FromArgb(0x55, 255, 255, 255))
+                : new SolidColorBrush(Color.FromRgb(226, 232, 243));
         }
 
         private async void DownloadButton_Click(object sender, RoutedEventArgs e)
         {
+            // Scale-down then back micro-animation on the button
+            var scaleDown = new DoubleAnimation(1.0, 0.95, TimeSpan.FromMilliseconds(80))
+            {
+                AutoReverse = true,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+            };
+            DownloadButton.RenderTransformOrigin = new Point(0.5, 0.5);
+            if (DownloadButton.RenderTransform is not ScaleTransform)
+                DownloadButton.RenderTransform = new ScaleTransform(1, 1);
+            (DownloadButton.RenderTransform as ScaleTransform)!.BeginAnimation(ScaleTransform.ScaleXProperty, scaleDown);
+            (DownloadButton.RenderTransform as ScaleTransform)!.BeginAnimation(ScaleTransform.ScaleYProperty, scaleDown);
+
             var url = UrlTextBox.Text;
-            
+
             if (string.IsNullOrWhiteSpace(url) || url == "Paste YouTube link here\u2026")
             {
-                MessageBox.Show("Please paste a YouTube URL first!", "No URL", 
+                MessageBox.Show("Please paste a YouTube URL first!", "No URL",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -384,9 +412,10 @@ namespace YouTubeDownloader
                 }
             }
             
-            // Store formats
+            // Store formats and URL
             _currentFormats = formats;
             _currentVideoInfo = videoInfo;
+            _currentUrl = UrlTextBox.Text;
             
             // Show video formats by default
             VideoFormatTab_Click(null!, null!);
@@ -403,11 +432,16 @@ namespace YouTubeDownloader
             QualityOverlay.BeginAnimation(OpacityProperty, fadeIn);
         }
 
-        private Border CreateFormatButton(FormatInfo format)
-{
-    bool isFirst = QualityListPanel.Children.Count == 0;
-    if (isFirst && _selectedFormat == null) _selectedFormat = format;
+        private void SubtitleSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_currentVideoInfo != null)
+            {
+                ShowSubtitles(_currentVideoInfo.Subtitles);
+            }
+        }
     
+        private Border CreateFormatButton(FormatInfo format)
+        {
     var container = new Border
     {
         Background = Brushes.Transparent,
@@ -474,10 +508,10 @@ namespace YouTubeDownloader
     grid.Children.Add(resolutionText);
 
     // "Best" Badge
-    var allFormatsInList = _currentFormats.Where(f => f.Height > 0 ? f.Height > 0 : f.Height == 0).ToList();
-    bool isBest = format.Height > 0 ? 
+    var allFormatsInList = (_currentFormats ?? new List<FormatInfo>()).Where(f => format.Height > 0 ? f.Height > 0 : f.Height == 0).ToList();
+    bool isBest = allFormatsInList.Count > 0 && (format.Height > 0 ? 
         (format.Height == allFormatsInList.Max(f => f.Height)) :
-        (format.Bitrate == allFormatsInList.Max(f => f.Bitrate));
+        (format.Bitrate == allFormatsInList.Max(f => f.Bitrate)));
 
     if (isBest)
     {
@@ -504,28 +538,69 @@ namespace YouTubeDownloader
 
     container.Child = grid;
 
-    // Click handler
-    container.MouseDown += (s, e) =>
+    // Click handler - use MouseLeftButtonDown + Handled so clicks on child elements work
+    container.MouseLeftButtonDown += (s, e) =>
     {
         _selectedFormat = format;
         RefreshQualityList();
+        e.Handled = true;
     };
 
     return container;
 }
 
+        private void ShowFormats(List<FormatInfo> formats)
+        {
+            QualityListPanel.Children.Clear();
+
+            // Only default to first if nothing selected or selection not in current list
+            if (_selectedFormat == null || !formats.Contains(_selectedFormat))
+            {
+                _selectedFormat = formats.OrderByDescending(f => f.Height).FirstOrDefault();
+            }
+
+            bool isFirst = true;
+            foreach (var format in formats.OrderByDescending(f => f.Height))
+            {
+
+                var button = CreateFormatButton(format);
+
+                if (!isFirst)
+                {
+                    var sep = new Border
+                    {
+                        Height = 1,
+                        Background = _isDarkMode
+                            ? new SolidColorBrush(Color.FromRgb(55, 55, 60))
+                            : new SolidColorBrush(Color.FromRgb(243, 244, 246)),
+                        Margin = new Thickness(45, 0, 10, 0)
+                    };
+                    QualityListPanel.Children.Add(sep);
+                }
+
+                QualityListPanel.Children.Add(button);
+                isFirst = false;
+            }
+        }
+
         private void RefreshQualityList()
         {
             // Determine which tab is active by checking the Effect (active tab has DropShadowEffect)
-            bool isVideoTabActive = VideoFormatTab.Effect != null;
-
-            if (isVideoTabActive)
+            if (VideoFormatTab.Effect != null)
             {
                 ShowFormats(_currentFormats?.Where(f => f.Height > 0).ToList() ?? new List<FormatInfo>());
             }
-            else
+            else if (AudioFormatTab.Effect != null)
             {
                 ShowAudioFormatsWithFormatSelector(_currentFormats?.Where(f => f.Height == 0).ToList() ?? new List<FormatInfo>());
+            }
+            else if (ThumbnailTab.Effect != null)
+            {
+                ShowThumbnails(_currentVideoInfo?.Thumbnails ?? new List<ThumbnailInfo>());
+            }
+            else if (SubtitleTab.Effect != null)
+            {
+                ShowSubtitles(_currentVideoInfo?.Subtitles ?? new List<SubtitleInfo>());
             }
         }
 
@@ -555,60 +630,71 @@ namespace YouTubeDownloader
             }
         }
 
+        private void UpdateTabStyles(Button activeTab)
+        {
+            var tabs = new[] { VideoFormatTab, AudioFormatTab, ThumbnailTab, SubtitleTab };
+            
+            foreach (var tab in tabs)
+            {
+                bool isActive = tab == activeTab;
+                
+                // Background
+                if (isActive)
+                {
+                    tab.Background = _isDarkMode ? new SolidColorBrush(Color.FromRgb(55, 55, 60)) : Brushes.White;
+                    tab.Foreground = _isDarkMode ? new SolidColorBrush(Color.FromRgb(230, 230, 230)) : new SolidColorBrush(Color.FromRgb(31, 41, 55));
+                    tab.Effect = new DropShadowEffect { ShadowDepth = 1, BlurRadius = 2, Opacity = 0.1 };
+                }
+                else
+                {
+                    tab.Background = Brushes.Transparent;
+                    tab.Foreground = _isDarkMode ? new SolidColorBrush(Color.FromRgb(140, 140, 145)) : new SolidColorBrush(Color.FromRgb(107, 114, 128));
+                    tab.Effect = null;
+                }
+            }
+
+            // Show/Hide Subtitle Search
+            SubtitleSearchContainer.Visibility = activeTab == SubtitleTab ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void VideoFormatTab_Click(object sender, RoutedEventArgs e)
-{
-    // Update tab styles - active tab
-    VideoFormatTab.Background = _isDarkMode
-        ? new SolidColorBrush(Color.FromRgb(55, 55, 60))
-        : Brushes.White;
-    VideoFormatTab.Foreground = _isDarkMode
-        ? new SolidColorBrush(Color.FromRgb(230, 230, 230))
-        : new SolidColorBrush(Color.FromRgb(31, 41, 55));
-    
-    var shadow = new DropShadowEffect { ShadowDepth = 1, BlurRadius = 2, Opacity = 0.1 };
-    VideoFormatTab.Effect = shadow;
+        {
+            UpdateTabStyles(VideoFormatTab);
+            _selectedFormat = null;
+            if (_currentFormats != null)
+            {
+                ShowFormats(_currentFormats.Where(f => f.Height > 0).ToList());
+            }
+        }
 
-    // Reset other tab
-    AudioFormatTab.Background = Brushes.Transparent;
-    AudioFormatTab.Foreground = _isDarkMode
-        ? new SolidColorBrush(Color.FromRgb(140, 140, 145))
-        : new SolidColorBrush(Color.FromRgb(107, 114, 128));
-    AudioFormatTab.Effect = null;
-
-    // Show video formats
-    _selectedFormat = null;
-    if (_currentFormats != null)
-    {
-        ShowFormats(_currentFormats.Where(f => f.Height > 0).ToList());
-    }
-}
         private void AudioFormatTab_Click(object sender, RoutedEventArgs e)
-{
-    // Update tab styles - active tab
-    AudioFormatTab.Background = _isDarkMode
-        ? new SolidColorBrush(Color.FromRgb(55, 55, 60))
-        : Brushes.White;
-    AudioFormatTab.Foreground = _isDarkMode
-        ? new SolidColorBrush(Color.FromRgb(230, 230, 230))
-        : new SolidColorBrush(Color.FromRgb(31, 41, 55));
-    
-    var shadow = new DropShadowEffect { ShadowDepth = 1, BlurRadius = 2, Opacity = 0.1 };
-    AudioFormatTab.Effect = shadow;
+        {
+            UpdateTabStyles(AudioFormatTab);
+            _selectedFormat = null;
+            if (_currentFormats != null)
+            {
+                ShowAudioFormatsWithFormatSelector(_currentFormats.Where(f => f.Height == 0).ToList());
+            }
+        }
 
-    // Reset other tab
-    VideoFormatTab.Background = Brushes.Transparent;
-    VideoFormatTab.Foreground = _isDarkMode
-        ? new SolidColorBrush(Color.FromRgb(140, 140, 145))
-        : new SolidColorBrush(Color.FromRgb(107, 114, 128));
-    VideoFormatTab.Effect = null;
+        private void ThumbnailTab_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateTabStyles(ThumbnailTab);
+            if (_currentVideoInfo != null)
+            {
+                ShowThumbnails(_currentVideoInfo.Thumbnails);
+            }
+        }
 
-    // Show audio-only formats
-    _selectedFormat = null;
-    if (_currentFormats != null)
-    {
-        ShowAudioFormatsWithFormatSelector(_currentFormats.Where(f => f.Height == 0).ToList());
-    }
-}
+        private void SubtitleTab_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateTabStyles(SubtitleTab);
+            SubtitleSearchBox.Text = ""; // Reset search
+            if (_currentVideoInfo != null)
+            {
+                ShowSubtitles(_currentVideoInfo.Subtitles);
+            }
+        }
         private void ShowAudioFormatsWithFormatSelector(List<FormatInfo> formats)
         {
             QualityListPanel.Children.Clear();
@@ -690,6 +776,12 @@ namespace YouTubeDownloader
             QualityListPanel.Children.Add(formatSelectorStack);
 
             // Add audio quality options
+            // Default to first audio format if nothing selected
+            if (_selectedFormat == null || !formats.Contains(_selectedFormat))
+            {
+                _selectedFormat = formats.OrderByDescending(f => f.Bitrate).FirstOrDefault();
+            }
+
             bool isFirst = true;
             foreach (var format in formats.OrderByDescending(f => f.Bitrate))
             {
@@ -714,56 +806,324 @@ namespace YouTubeDownloader
             }
         }
 
-        // CreateAudioFormatButton is no longer needed as we use the unified CreateFormatButton
-
-
-        private void ShowFormats(List<FormatInfo> formats)
-{
-    QualityListPanel.Children.Clear();
-
-    bool isFirst = true;
-
-    // Sort by height desc
-    var sortedFormats = formats.OrderByDescending(f => f.Height).ToList();
-
-    foreach (var format in sortedFormats)
-    {
-        var button = CreateFormatButton(format);
-        
-        // Add separator if not last
-        if (!isFirst) 
+        private void ShowThumbnails(List<ThumbnailInfo> thumbnails)
         {
-            var sep = new Border 
-            { 
-                Height = 1, 
-                Background = _isDarkMode
-                    ? new SolidColorBrush(Color.FromRgb(55, 55, 60))
-                    : new SolidColorBrush(Color.FromRgb(243, 244, 246)),
-                Margin = new Thickness(45, 0, 10, 0)
-            };
-            QualityListPanel.Children.Add(sep);
+            QualityListPanel.Children.Clear();
+
+            // Only default to first if nothing selected or selection not in current list
+            if (_selectedThumbnail == null || !thumbnails.Contains(_selectedThumbnail))
+            {
+                _selectedThumbnail = thumbnails.FirstOrDefault();
+            }
+
+            bool isFirst = true;
+            foreach (var thumb in thumbnails)
+            {
+
+                var button = CreateThumbnailButton(thumb);
+                
+                if (!isFirst)
+                {
+                   var sep = new Border 
+                    { 
+                        Height = 1, 
+                        Background = _isDarkMode
+                            ? new SolidColorBrush(Color.FromRgb(55, 55, 60))
+                            : new SolidColorBrush(Color.FromRgb(243, 244, 246)),
+                        Margin = new Thickness(45, 0, 10, 0)
+                    };
+                    QualityListPanel.Children.Add(sep);
+                }
+                
+                QualityListPanel.Children.Add(button);
+                isFirst = false;
+            }
         }
-        
-        QualityListPanel.Children.Add(button);
-        isFirst = false;
-    }
-}
+
+        private Border CreateThumbnailButton(ThumbnailInfo thumb)
+        {
+            var container = new Border
+            {
+                Background = Brushes.Transparent,
+                Padding = new Thickness(10, 12, 10, 12),
+                Cursor = Cursors.Hand,
+                Tag = thumb
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Radio
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Text
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Badge
+
+            var unselectedRadioBrush = _isDarkMode 
+                ? new SolidColorBrush(Color.FromRgb(100, 100, 100)) 
+                : new SolidColorBrush(Color.FromRgb(200, 200, 200));
+
+            var radioBorder = new Border
+            {
+                Width = 20, Height = 20,
+                CornerRadius = new CornerRadius(10),
+                BorderThickness = new Thickness(2),
+                BorderBrush = _selectedThumbnail == thumb ? new SolidColorBrush(Color.FromRgb(26, 115, 232)) : unselectedRadioBrush,
+                Background = Brushes.Transparent,
+                Margin = new Thickness(0, 0, 15, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            if (_selectedThumbnail == thumb)
+            {
+                radioBorder.Child = new Border
+                {
+                    Width = 10, Height = 10,
+                    CornerRadius = new CornerRadius(5),
+                    Background = new SolidColorBrush(Color.FromRgb(26, 115, 232)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                container.Background = _isDarkMode
+                    ? new SolidColorBrush(Color.FromRgb(30, 50, 80))
+                    : new SolidColorBrush(Color.FromRgb(232, 240, 254));
+            }
+
+            Grid.SetColumn(radioBorder, 0);
+            grid.Children.Add(radioBorder);
+
+            var resText = new TextBlock
+            {
+                Text = $"{thumb.Resolution}",
+                FontSize = 15,
+                FontWeight = FontWeights.Medium,
+                Foreground = _isDarkMode
+                    ? new SolidColorBrush(Color.FromRgb(230, 230, 230))
+                    : new SolidColorBrush(Color.FromRgb(31, 41, 55)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(resText, 1);
+            grid.Children.Add(resText);
+
+            var badge = new Border
+            {
+                Background = _isDarkMode ? new SolidColorBrush(Color.FromRgb(55, 55, 60)) : new SolidColorBrush(Color.FromRgb(229, 231, 235)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            badge.Child = new TextBlock
+            {
+                Text = "JPG/WEBP",
+                Foreground = _isDarkMode ? new SolidColorBrush(Color.FromRgb(200, 200, 200)) : new SolidColorBrush(Color.FromRgb(75, 85, 99)),
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold
+            };
+            Grid.SetColumn(badge, 2);
+            grid.Children.Add(badge);
+
+            container.Child = grid;
+
+            container.MouseLeftButtonDown += (s, e) =>
+            {
+                _selectedThumbnail = thumb;
+                ShowThumbnails(_currentVideoInfo!.Thumbnails);
+                e.Handled = true;
+            };
+
+            return container;
+        }
+
+        private void ShowSubtitles(List<SubtitleInfo> subtitles)
+        {
+            QualityListPanel.Children.Clear();
+
+            var filter = SubtitleSearchBox.Text.Trim().ToLower();
+
+            var filtered = string.IsNullOrEmpty(filter) 
+                ? subtitles 
+                : subtitles.Where(s => s.DisplayName.ToLower().Contains(filter) || s.LanguageCode.ToLower().Contains(filter)).ToList();
+
+            // Only default to first if nothing selected or selection not in current list
+            if (_selectedSubtitle == null || !filtered.Any(s => s == _selectedSubtitle))
+            {
+                _selectedSubtitle = filtered.FirstOrDefault();
+            }
+
+            if (filtered.Count == 0)
+            {
+                var noResults = new TextBlock
+                {
+                    Text = "No subtitles found matching filter.",
+                    Foreground = Brushes.Gray,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 20, 0, 0)
+                };
+                QualityListPanel.Children.Add(noResults);
+                return;
+            }
+
+            bool isFirst = true;
+
+            foreach (var sub in filtered)
+            {
+                // isFirst is only for separator logic now
+                var button = CreateSubtitleButton(sub);
+                
+                if (!isFirst)
+                {
+                   var sep = new Border 
+                    { 
+                        Height = 1, 
+                        Background = _isDarkMode
+                            ? new SolidColorBrush(Color.FromRgb(55, 55, 60))
+                            : new SolidColorBrush(Color.FromRgb(243, 244, 246)),
+                        Margin = new Thickness(45, 0, 10, 0)
+                    };
+                    QualityListPanel.Children.Add(sep);
+                }
+                
+                QualityListPanel.Children.Add(button);
+                isFirst = false;
+            }
+        }
+
+        private Border CreateSubtitleButton(SubtitleInfo sub)
+        {
+            var container = new Border
+            {
+                Background = Brushes.Transparent,
+                Padding = new Thickness(10, 12, 10, 12),
+                Cursor = Cursors.Hand,
+                Tag = sub
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); 
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); 
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); 
+
+            var unselectedRadioBrush = _isDarkMode 
+                ? new SolidColorBrush(Color.FromRgb(100, 100, 100)) 
+                : new SolidColorBrush(Color.FromRgb(200, 200, 200));
+
+            var radioBorder = new Border
+            {
+                Width = 20, Height = 20,
+                CornerRadius = new CornerRadius(10),
+                BorderThickness = new Thickness(2),
+                BorderBrush = _selectedSubtitle == sub ? new SolidColorBrush(Color.FromRgb(26, 115, 232)) : unselectedRadioBrush,
+                Background = Brushes.Transparent,
+                Margin = new Thickness(0, 0, 15, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            if (_selectedSubtitle == sub)
+            {
+                radioBorder.Child = new Border
+                {
+                    Width = 10, Height = 10,
+                    CornerRadius = new CornerRadius(5),
+                    Background = new SolidColorBrush(Color.FromRgb(26, 115, 232)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                container.Background = _isDarkMode
+                    ? new SolidColorBrush(Color.FromRgb(30, 50, 80))
+                    : new SolidColorBrush(Color.FromRgb(232, 240, 254));
+            }
+
+            Grid.SetColumn(radioBorder, 0);
+            grid.Children.Add(radioBorder);
+
+            var nameText = new TextBlock
+            {
+                Text = sub.DisplayName,
+                FontSize = 14,
+                FontWeight = FontWeights.Medium,
+                Foreground = _isDarkMode
+                    ? new SolidColorBrush(Color.FromRgb(230, 230, 230))
+                    : new SolidColorBrush(Color.FromRgb(31, 41, 55)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(nameText, 1);
+            grid.Children.Add(nameText);
+
+            var badge = new Border
+            {
+                Background = _isDarkMode ? new SolidColorBrush(Color.FromRgb(55, 55, 60)) : new SolidColorBrush(Color.FromRgb(229, 231, 235)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            badge.Child = new TextBlock
+            {
+                Text = sub.LanguageCode.ToUpper(),
+                Foreground = _isDarkMode ? new SolidColorBrush(Color.FromRgb(200, 200, 200)) : new SolidColorBrush(Color.FromRgb(75, 85, 99)),
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold
+            };
+            Grid.SetColumn(badge, 2);
+            grid.Children.Add(badge);
+
+            container.Child = grid;
+
+            container.MouseLeftButtonDown += (s, e) =>
+            {
+                _selectedSubtitle = sub;
+                // Don't clear search, just refresh list to show selection
+                ShowSubtitles(_currentVideoInfo!.Subtitles);
+                e.Handled = true;
+            };
+
+            return container;
+        }
 
         private async void QualityDownload_Click(object sender, RoutedEventArgs e)
         {
-            if (_selectedFormat == null || _currentVideoInfo == null)
+            if (_currentVideoInfo == null)
             {
-                MessageBox.Show("Please select a quality option.", "No Selection",
+                MessageBox.Show("No video loaded.", "No Selection",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            // Close the selector
-            CloseQualitySelector_Click(sender, null!);
+            // Determine which tab is active by checking DropShadowEffect
+            bool isThumbnailTab = ThumbnailTab.Effect != null;
+            bool isSubtitleTab = SubtitleTab.Effect != null;
 
-            // Start download
-            var url = UrlTextBox.Text;
-            await StartDownloadAsync(url, _currentVideoInfo, _selectedFormat);
+            if (isThumbnailTab)
+            {
+                if (_selectedThumbnail == null)
+                {
+                    MessageBox.Show("Please select a thumbnail to download.", "No Selection",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                CloseQualitySelector_Click(sender, null!);
+                await DownloadThumbnailAsync(_currentVideoInfo, _selectedThumbnail);
+            }
+            else if (isSubtitleTab)
+            {
+                if (_selectedSubtitle == null)
+                {
+                    MessageBox.Show("Please select a subtitle to download.", "No Selection",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                var url = _currentUrl ?? UrlTextBox.Text;
+                CloseQualitySelector_Click(sender, null!);
+                await DownloadSubtitleAsync(url, _currentVideoInfo, _selectedSubtitle);
+            }
+            else
+            {
+                // Video or Audio tab
+                if (_selectedFormat == null)
+                {
+                    MessageBox.Show("Please select a quality option.", "No Selection",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                CloseQualitySelector_Click(sender, null!);
+                var url = _currentUrl ?? UrlTextBox.Text;
+                await StartDownloadAsync(url, _currentVideoInfo, _selectedFormat);
+            }
         }
 
         private DispatcherTimer? _loadingPetalTimer;
@@ -776,7 +1136,13 @@ namespace YouTubeDownloader
             if (_isDarkMode)
             {
                 LoadingOverlayBg.Color = Color.FromArgb(170, 15, 10, 18);
-                LoadingCardBg.Color = Color.FromArgb(244, 38, 32, 38);
+                LoadingCard.Background = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromArgb(244, 38, 32, 42), 0),
+                        new GradientStop(Color.FromArgb(244, 30, 25, 36), 1)
+                    },
+                    new Point(0, 0), new Point(0, 1));
                 LoadingTextFg.Color = Color.FromRgb(230, 210, 215);
                 LoadingRingBg.Stroke = new SolidColorBrush(Color.FromRgb(60, 45, 52));
                 LoadingSubText.Foreground = new SolidColorBrush(Color.FromRgb(150, 125, 135));
@@ -784,7 +1150,13 @@ namespace YouTubeDownloader
             else
             {
                 LoadingOverlayBg.Color = Color.FromArgb(136, 0, 0, 0);
-                LoadingCardBg.Color = Color.FromArgb(244, 255, 250, 251);
+                LoadingCard.Background = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromArgb(244, 255, 254, 255), 0),
+                        new GradientStop(Color.FromArgb(244, 254, 246, 248), 1)
+                    },
+                    new Point(0, 0), new Point(0, 1));
                 LoadingTextFg.Color = Color.FromRgb(61, 43, 53);
                 LoadingRingBg.Stroke = new SolidColorBrush(Color.FromRgb(240, 224, 228));
                 LoadingSubText.Foreground = new SolidColorBrush(Color.FromRgb(176, 149, 158));
@@ -1072,6 +1444,139 @@ namespace YouTubeDownloader
             }
         }
 
+        private async Task DownloadThumbnailAsync(VideoInfo video, ThumbnailInfo thumb)
+        {
+            var item = new DownloadItem
+            {
+                Title = video.Title,
+                Format = "Image", // JPG/WEBP
+                Quality = thumb.Resolution,
+                ThumbnailUrl = video.ThumbnailUrl,
+                Progress = 0,
+                Status = DownloadStatus.Downloading
+            };
+
+            _downloads.Add(item);
+            AddDownloadToUI(item);
+            ShowDownloads_Click(null!, null!);
+
+            // Clear URL box like video downloads do
+            UrlTextBox.Text = "Paste YouTube link here\u2026";
+            UrlTextBox.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+
+            try
+            {
+                // Create filename
+                string safeTitle = SanitizeFileName(video.Title);
+                string ext = Path.GetExtension(thumb.Url).Split('?')[0]; // simple extension extraction
+                if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                
+                string fileName = $"{safeTitle} - {thumb.Resolution}{ext}";
+                string filePath = Path.Combine(_downloadFolder, fileName);
+                item.FilePath = filePath;
+
+                using var client = new System.Net.Http.HttpClient();
+                var data = await client.GetByteArrayAsync(thumb.Url);
+                
+                await File.WriteAllBytesAsync(filePath, data);
+
+                item.Progress = 100;
+                item.Status = DownloadStatus.Completed;
+            }
+            catch (Exception ex)
+            {
+                item.Status = DownloadStatus.Failed;
+                MessageBox.Show($"Thumbnail download failed: {ex.Message}");
+            }
+        }
+
+        private async Task DownloadSubtitleAsync(string url, VideoInfo video, SubtitleInfo sub)
+        {
+             var item = new DownloadItem
+            {
+                Title = video.Title + " (Subtitle)",
+                Format = "Subtitle",
+                Quality = sub.DisplayName,
+                ThumbnailUrl = video.ThumbnailUrl,
+                Progress = 0,
+                Status = DownloadStatus.Downloading
+            };
+
+            _downloads.Add(item);
+            AddDownloadToUI(item);
+            ShowDownloads_Click(null!, null!);
+
+            // Clear URL box like video downloads do
+            UrlTextBox.Text = "Paste YouTube link here\u2026";
+            UrlTextBox.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            _downloadCancellations[item] = cancellationTokenSource;
+
+            try
+            {
+                string safeTitle = SanitizeFileName(video.Title);
+                // We don't know exact ext yet (.vtt or .srt usually), yt-dlp decides
+                string outputTemplate = Path.Combine(_downloadFolder, $"{safeTitle}.%(ext)s"); 
+                item.FilePath = outputTemplate; // Approximation
+
+                var args = $"--skip-download --write-sub --sub-lang {sub.LanguageCode} --output \"{outputTemplate}\" \"{url}\"";
+                
+                // If auto-generated, use --write-auto-sub
+                if (sub.IsAutoGenerated)
+                {
+                    args = $"--skip-download --write-auto-sub --sub-lang {sub.LanguageCode} --output \"{outputTemplate}\" \"{url}\"";
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ytDlpPath,
+                    Arguments = args,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = new Process { StartInfo = startInfo };
+                
+                // Track progress blindly (subs are fast)
+                var progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                progressTimer.Tick += (s, e) => 
+                {
+                    if (item.Progress < 90) item.Progress += 5;
+                };
+                progressTimer.Start();
+
+                process.Start();
+                await process.WaitForExitAsync(cancellationTokenSource.Token);
+                progressTimer.Stop();
+
+                if (process.ExitCode != 0)
+                {
+                   throw new Exception($"yt-dlp exited with code {process.ExitCode}");
+                }
+
+                item.Progress = 100;
+                item.Status = DownloadStatus.Completed;
+            }
+            catch (Exception ex)
+            {
+                item.Status = DownloadStatus.Failed;
+                if (!(ex is OperationCanceledException))
+                {
+                    MessageBox.Show($"Subtitle download failed: {ex.Message}");
+                }
+            }
+            finally
+            {
+                if (_downloadCancellations.ContainsKey(item))
+                {
+                    _downloadCancellations.Remove(item);
+                }
+            }
+        }
+
         private async Task<(VideoInfo?, List<FormatInfo>?)> GetVideoInfoAndFormatsAsync(string url)
         {
             try
@@ -1140,6 +1645,84 @@ namespace YouTubeDownloader
                         Uploader = root.TryGetProperty("uploader", out var uploader) ? uploader.GetString() ?? "Unknown" : "Unknown",
                         ThumbnailUrl = root.TryGetProperty("thumbnail", out var thumb) ? thumb.GetString() : null
                     };
+
+                    // === Parse Thumbnails ===
+                    if (root.TryGetProperty("thumbnails", out var thumbsArray))
+                    {
+                        foreach (var t in thumbsArray.EnumerateArray())
+                        {
+                            if (t.TryGetProperty("url", out var tUrl) && 
+                                t.TryGetProperty("width", out var tWidth) && 
+                                t.TryGetProperty("height", out var tHeight))
+                            {
+                                videoInfo.Thumbnails.Add(new ThumbnailInfo
+                                {
+                                    Url = tUrl.GetString() ?? "",
+                                    Width = tWidth.GetInt32(),
+                                    Height = tHeight.GetInt32()
+                                });
+                            }
+                        }
+                        // Sort by resolution (highest first) and remove duplicates
+                        videoInfo.Thumbnails = videoInfo.Thumbnails
+                            .OrderByDescending(t => t.Width * t.Height)
+                            .GroupBy(t => t.Resolution)
+                            .Select(g => g.First())
+                            .ToList();
+                    }
+
+                    // === Parse Subtitles (Manual) ===
+                    if (root.TryGetProperty("subtitles", out var subsObj))
+                    {
+                        foreach (var prop in subsObj.EnumerateObject())
+                        {
+                            string langCode = prop.Name;
+                            string name = langCode;
+                            
+                            if (prop.Value.ValueKind == JsonValueKind.Array && prop.Value.GetArrayLength() > 0)
+                            {
+                                var firstPub = prop.Value[0];
+                                if (firstPub.TryGetProperty("name", out var n)) name = n.GetString() ?? langCode;
+                            }
+
+                            videoInfo.Subtitles.Add(new SubtitleInfo
+                            {
+                                LanguageCode = langCode,
+                                Name = name,
+                                IsAutoGenerated = false
+                            });
+                        }
+                    }
+
+                    // === Parse Auto Captions ===
+                    if (root.TryGetProperty("automatic_captions", out var autoSubsObj))
+                    {
+                        foreach (var prop in autoSubsObj.EnumerateObject())
+                        {
+                            string langCode = prop.Name;
+                            string name = langCode;
+
+                            if (prop.Value.ValueKind == JsonValueKind.Array && prop.Value.GetArrayLength() > 0)
+                            {
+                                var firstPub = prop.Value[0];
+                                if (firstPub.TryGetProperty("name", out var n)) name = n.GetString() ?? langCode;
+                            }
+
+                            // Avoid duplicates if manual sub exists
+                            if (!videoInfo.Subtitles.Any(s => s.LanguageCode == langCode))
+                            {
+                                videoInfo.Subtitles.Add(new SubtitleInfo
+                                {
+                                    LanguageCode = langCode,
+                                    Name = name,
+                                    IsAutoGenerated = true
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Sort subtitles by name
+                    videoInfo.Subtitles = videoInfo.Subtitles.OrderBy(s => s.Name).ToList();
 
                     // Parse available formats
                     var formats = new List<FormatInfo>();
@@ -1300,32 +1883,27 @@ namespace YouTubeDownloader
         {
             var formatArg = formatId == "best" ? "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" : formatId;
             
-            // Determine if this is a multi-fragment download (video+audio = 2 separate streams)
             bool isAudioOnly = outputPath.EndsWith(".mp3") || outputPath.EndsWith(".m4a");
-            bool isMultiFragment = !isAudioOnly;
-            int fragmentCount = 0;
-            
-            // Build arguments based on output format
+            bool isMultiStream = !isAudioOnly; // video + audio = 2 separate download streams
+
+            // Build yt-dlp arguments
             string arguments;
             if (outputPath.EndsWith(".mp3"))
             {
-                // For MP3, extract audio and convert
-                arguments = $"--newline --no-playlist --no-part -c -f \"{formatArg}\" " +
+                arguments = $"--no-playlist --no-part -c -f \"{formatArg}\" " +
                           $"-x --audio-format mp3 --audio-quality 0 -o \"{outputPath}\" \"{url}\"";
             }
             else if (outputPath.EndsWith(".m4a"))
             {
-                // For M4A, extract audio
-                arguments = $"--newline --no-playlist --no-part -c -f \"{formatArg}\" " +
+                arguments = $"--no-playlist --no-part -c -f \"{formatArg}\" " +
                           $"-x --audio-format m4a -o \"{outputPath}\" \"{url}\"";
             }
             else
             {
-                // For video (MP4)
-                arguments = $"--newline --no-playlist --no-part -c -f \"{formatArg}+bestaudio/best\" " +
+                arguments = $"--no-playlist --no-part -c -f \"{formatArg}+bestaudio/best\" " +
                           $"--merge-output-format mp4 -o \"{outputPath}\" \"{url}\"";
             }
-            
+
             var startInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
@@ -1337,85 +1915,158 @@ namespace YouTubeDownloader
             };
 
             using var process = new Process { StartInfo = startInfo };
+            process.Start();
+
+            // Drain stderr in background to prevent deadlock during ffmpeg merge
+            _ = process.StandardError.ReadToEndAsync();
+
+            // ── READ RAW STDOUT, splitting on \r AND \n ───────────────────────────────
+            // yt-dlp uses \r to overwrite progress on the same line. .NET's
+            // BeginOutputReadLine only fires on \n, silently discarding all intermediate
+            // progress. We read raw chars so every overwrite is captured.
+            //
+            // STREAM TRACKING — synchronous, no deferrals:
+            // streamCount is incremented synchronously inside the char loop (NOT in a
+            // BeginInvoke) so the very first '%' line already has the correct bucket.
+            //
+            // Multi-stream weighting:  video 0-100% → overall 0-60%
+            //                          audio 0-100% → overall 60-100%
+            //
+            // Cached-stream edge case: yt-dlp may skip the video [download] Destination
+            // line and jump directly to audio. We detect a sudden percent drop (new stream
+            // without announcement) and advance streamCount automatically.
+            int streamCount = 0;          // synchronously maintained — NO BeginInvoke
+            double lastRawPercent = -1.0; // to detect silent stream switches
             
-            process.OutputDataReceived += (sender, e) =>
+            var stdoutTask = Task.Run(async () =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                var buffer = new System.Text.StringBuilder();
+                var reader = process.StandardOutput;
+                char[] chunk = new char[256];
+                int charsRead;
+
+                while ((charsRead = await reader.ReadAsync(chunk, 0, chunk.Length)) > 0)
                 {
-                    // Detect new download fragment (yt-dlp logs "[download] Destination:" for each stream)
-                    if (e.Data.Contains("[download] Destination:"))
+                    for (int i = 0; i < charsRead; i++)
                     {
-                        fragmentCount++;
-                    }
-                    
-                    // Parse progress from yt-dlp output
-                    if (e.Data.Contains("[download]") && e.Data.Contains("%"))
-                    {
-                        try
+                        char c = chunk[i];
+                        if (c == '\r' || c == '\n')
                         {
-                            var parts = e.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (var part in parts)
+                            if (buffer.Length > 0)
                             {
-                                if (part.EndsWith("%"))
+                                string line = buffer.ToString();
+                                buffer.Clear();
+
+                                // ── Stream-start detection (synchronous, no defer) ──
+                                if (line.Contains("[download] Destination:"))
                                 {
-                                    var percentStr = part.TrimEnd('%');
-                                    if (double.TryParse(percentStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+                                    streamCount++;
+                                    lastRawPercent = -1.0; // clean slate for new stream
+                                }
+                                // ── Progress percentage ──
+                                else if (line.Contains("[download]"))
+                                {
+                                    var match = Regex.Match(line, @"\[download\]\s+(\d+\.?\d*)%");
+                                    if (match.Success && double.TryParse(match.Groups[1].Value,
+                                        NumberStyles.Float, CultureInfo.InvariantCulture, out var rawPercent))
                                     {
-                                        // For video+audio downloads, scale each stream's progress to half
-                                        // Fragment 1 (video): 0-50%, Fragment 2 (audio): 50-100%
-                                        if (isMultiFragment && fragmentCount >= 1)
+                                        // Detect silent stream switch (percent dropped without Destination line)
+                                        if (lastRawPercent >= 0 && rawPercent < lastRawPercent - 5.0)
                                         {
-                                            int frag = Math.Min(fragmentCount, 2);
-                                            double offset = (frag - 1) * 50.0;
-                                            percent = offset + (percent * 0.5);
+                                            streamCount++;
+                                            lastRawPercent = -1.0;
                                         }
-                                        percent = Math.Min(percent, 100.0);
-                                        
-                                        Dispatcher.Invoke(() =>
+                                        lastRawPercent = rawPercent;
+
+                                        // Guard: if Destination line was missed, assume stream 1
+                                        if (streamCount == 0) streamCount = 1;
+
+                                        double overallPercent;
+                                        if (isMultiStream)
                                         {
-                                            downloadItem.Progress = percent;
-                                            downloadItem.DownloadedSize = downloadItem.TotalSize * (percent / 100.0);
-                                        });
+                                            if (streamCount == 1)
+                                                overallPercent = rawPercent * 0.60; // video: 0→60%
+                                            else
+                                                overallPercent = 60.0 + rawPercent * 0.40; // audio: 60→100%
+                                        }
+                                        else
+                                        {
+                                            overallPercent = rawPercent;
+                                        }
+
+                                        // Cap at 99.9 — 100% is set explicitly on completion
+                                        overallPercent = Math.Min(Math.Max(overallPercent, 0), 99.9);
+
+                                        double capturedPercent = overallPercent;
+                                        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+                                        {
+                                            // Never regress — only advance
+                                            if (capturedPercent > downloadItem.Progress)
+                                            {
+                                                downloadItem.Progress = capturedPercent;
+                                                downloadItem.DownloadedSize = downloadItem.TotalSize * (capturedPercent / 100.0);
+                                            }
+                                        }));
                                     }
-                                    break;
+                                }
+
+                                // ── Merge / completion detection → pin to 100% ──
+                                if (line.Contains("[Merger]") || line.Contains("[Mux]") || line.Contains("Merging") ||
+                                    line.Contains("[ExtractAudio]") || line.Contains("Deleting original file"))
+                                {
+                                    Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+                                    {
+                                        downloadItem.Progress = 100;
+                                        downloadItem.DownloadedSize = downloadItem.TotalSize;
+                                    }));
                                 }
                             }
                         }
-                        catch { }
+                        else
+                        {
+                            buffer.Append(c);
+                        }
                     }
-                    
-                    // Detect merge/mux phase (ffmpeg combining video+audio)
-                    if (e.Data.Contains("[Merger]") || e.Data.Contains("[Mux]") || e.Data.Contains("Merging"))
+                }
+
+                // Flush remaining buffer
+                if (buffer.Length > 0)
+                {
+                    string remaining = buffer.ToString();
+                    if (remaining.Contains("[Merger]") || remaining.Contains("[Mux]") ||
+                        remaining.Contains("[ExtractAudio]"))
                     {
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
                         {
                             downloadItem.Progress = 100;
                             downloadItem.DownloadedSize = downloadItem.TotalSize;
-                        });
+                        }));
                     }
                 }
-            };
-
-            // CRITICAL: Drain stderr asynchronously to prevent deadlock during ffmpeg merge.
-            // Without this, the stderr buffer fills up and the process hangs forever.
-            process.ErrorDataReceived += (sender, e) => { /* drain stderr buffer */ };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+            });
 
             // Wait for completion or cancellation
-            while (!process.HasExited)
+            try
             {
-                if (cancellationToken.IsCancellationRequested)
+                while (!process.HasExited)
                 {
-                    try { process.Kill(); } catch { }
-                    throw new OperationCanceledException();
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        try { process.Kill(); } catch { }
+                        throw new OperationCanceledException();
+                    }
+                    await Task.Delay(100);
                 }
-                await Task.Delay(100);
+                
+                // Wait for stdout reader to finish processing remaining output
+                await stdoutTask;
+            }
+            catch (OperationCanceledException)
+            {
+                try { if (!process.HasExited) process.Kill(); } catch { }
+                throw;
             }
 
-            // Only check exit code if we weren't cancelled (Kill() causes non-zero exit)
             if (!cancellationToken.IsCancellationRequested && process.ExitCode != 0)
             {
                 throw new Exception($"yt-dlp failed with exit code {process.ExitCode}");
@@ -1466,25 +2117,67 @@ namespace YouTubeDownloader
 
         private void AddDownloadToUI(DownloadItem item)
         {
-            // === Card Container ===
+            // === Card Container (clip inner content to the rounded rect) ===
             var itemBorder = new Border
             {
                 Background = _isDarkMode
-                    ? new SolidColorBrush(Color.FromRgb(40, 44, 52))   // Dark card bg
+                    ? new SolidColorBrush(Color.FromRgb(38, 42, 54))
                     : new SolidColorBrush(Color.FromRgb(255, 255, 255)),
                 CornerRadius = new CornerRadius(16),
-                Padding = new Thickness(14),
-                Margin = new Thickness(0, 0, 0, 12),
+                Margin = new Thickness(0, 0, 0, 10),
                 Tag = item,
                 SnapsToDevicePixels = true,
-                BorderBrush = _isDarkMode
-                    ? new SolidColorBrush(Color.FromRgb(55, 60, 70))
-                    : new SolidColorBrush(Color.FromRgb(226, 232, 240)),
-                BorderThickness = new Thickness(1)
+                ClipToBounds = true
             };
+            itemBorder.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 14,
+                ShadowDepth = 2,
+                Opacity = _isDarkMode ? 0.30 : 0.07,
+                Color = Colors.Black
+            };
+
+            // Slide-in entrance animation: translate Y from +18 → 0, opacity 0 → 1
+            itemBorder.Opacity = 0;
+            itemBorder.RenderTransform = new TranslateTransform(0, 18);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+            {
+                var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                var slideUp = new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(220))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                itemBorder.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+                (itemBorder.RenderTransform as TranslateTransform)!.BeginAnimation(TranslateTransform.YProperty, slideUp);
+            }));
+
+            // Outer card is a grid: Col0 = accent stripe, Col1 = content
+            var outerGrid = new Grid();
+            outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // stripe
+            outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // content
+
+            // Left-side status color stripe
+            var statusStripe = new Border
+            {
+                Width = 4,
+                Background = new SolidColorBrush(Color.FromRgb(91, 141, 239)), // default accent
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            Grid.SetColumn(statusStripe, 0);
+            outerGrid.Children.Add(statusStripe);
+
+            // Content wrapper with padding
+            var contentWrapper = new Border { Padding = new Thickness(14, 12, 14, 12) };
+            Grid.SetColumn(contentWrapper, 1);
+            outerGrid.Children.Add(contentWrapper);
+            itemBorder.Child = outerGrid;
 
             // Main vertical stack: Row 1 (thumb+info+ring), Row 2 (buttons)
             var outerStack = new StackPanel();
+            contentWrapper.Child = outerStack;
 
             // === ROW 1: Thumbnail | Title+Meta | Progress Ring ===
             var topRow = new Grid();
@@ -1596,11 +2289,12 @@ namespace YouTubeDownloader
                 Width = ringSize - 4, Height = ringSize - 4
             };
 
-            // Progress arc
+            // Progress arc — endpoint initialized 0.001px off start so 0% renders as
+            // an invisible arc (not the degenerate full-ring that WPF draws when start==end)
             var pathFigure = new PathFigure { StartPoint = new Point(ringCenter, ringCenter - ringRadius) };
             var arcSegment = new ArcSegment
             {
-                Point = new Point(ringCenter, ringCenter - ringRadius),
+                Point = new Point(ringCenter + 0.001, ringCenter - ringRadius),
                 Size = new Size(ringRadius, ringRadius),
                 SweepDirection = SweepDirection.Clockwise,
                 IsLargeArc = false
@@ -1748,9 +2442,7 @@ namespace YouTubeDownloader
             buttonStack.Children.Add(removeButton);
             outerStack.Children.Add(buttonStack);
 
-            // Assemble card
-            itemBorder.Child = outerStack;
-            DownloadsList.Children.Add(itemBorder);
+            DownloadsList.Children.Insert(0, itemBorder);
 
             // Set initial state based on current item status (important for RefreshDownloadCards)
             if (item.Status == DownloadStatus.Paused)
@@ -1765,6 +2457,7 @@ namespace YouTubeDownloader
             }
             else if (item.Status == DownloadStatus.Completed)
             {
+                statusStripe.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
                 progressPath.Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129));
                 percentText.Text = "✓";
                 percentText.FontSize = 22;
@@ -1777,6 +2470,7 @@ namespace YouTubeDownloader
             }
             else if (item.Status == DownloadStatus.Failed)
             {
+                statusStripe.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
                 progressPath.Stroke = new SolidColorBrush(Color.FromRgb(239, 68, 68));
                 percentText.Text = "!";
                 percentText.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
@@ -1875,32 +2569,26 @@ namespace YouTubeDownloader
             };
 
             // === Property Changed Listener ===
+            // Both branches use BeginInvoke(Render) — same priority as the progress writer
+            // in DownloadVideoAsync. This prevents out-of-order updates and never blocks
+            // the background reader task with a synchronous Invoke.
             PropertyChangedEventHandler handler = (s, e) =>
             {
                 if (e.PropertyName == nameof(DownloadItem.Progress))
                 {
-                    Dispatcher.Invoke(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
                     {
-                        percentText.Text = $"{(int)item.Progress}%";
-                        UpdateProgressRing(item.Progress);
-
-                        if (item.Status == DownloadStatus.Completed)
+                        // Only update the ring text while actively downloading
+                        if (item.Status == DownloadStatus.Downloading)
                         {
-                            // Green completion
-                            progressPath.Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                            percentText.Text = "✓";
-                            percentText.FontSize = 22;
-                            percentText.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-
-                            pauseButton.Visibility = Visibility.Collapsed;
-                            cancelButton.Visibility = Visibility.Collapsed;
-                            removeButton.Visibility = Visibility.Visible;
+                            percentText.Text = $"{(int)item.Progress}%";
+                            UpdateProgressRing(item.Progress);
                         }
-                    });
+                    }));
                 }
                 else if (e.PropertyName == nameof(DownloadItem.Status))
                 {
-                    Dispatcher.Invoke(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
                     {
                         if (item.Status == DownloadStatus.Paused)
                         {
@@ -1926,7 +2614,8 @@ namespace YouTubeDownloader
                         }
                         else if (item.Status == DownloadStatus.Completed)
                         {
-                            // Green completion
+                            // Ensure ring is full before switching to green ✓
+                            UpdateProgressRing(100);
                             progressPath.Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129));
                             percentText.Text = "✓";
                             percentText.FontSize = 22;
@@ -1946,7 +2635,7 @@ namespace YouTubeDownloader
                             cancelButton.Visibility = Visibility.Collapsed;
                             removeButton.Visibility = Visibility.Visible;
                         }
-                    });
+                    }));
                 }
             };
 
@@ -2110,22 +2799,37 @@ namespace YouTubeDownloader
 
         private void UpdateDownloadsTabs(bool allActive)
         {
-            // Active color: blue in light mode, purple in dark mode
-            var activeColor = _isDarkMode
-                ? Color.FromRgb(0x8B, 0x5C, 0xF6) // purple
-                : Color.FromRgb(0x3B, 0x82, 0xF6); // blue
-            var activeBrush = new SolidColorBrush(activeColor);
-            var inactiveBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)); // grey
+            // Active color: accent blue (same in both modes for clarity)
+            var activeBrush  = new SolidColorBrush(Color.FromRgb(0x5B, 0x8D, 0xEF));
+            var inactiveBrush = new SolidColorBrush(_isDarkMode
+                ? Color.FromRgb(0x8B, 0x99, 0xB3)
+                : Color.FromRgb(0x9C, 0xA3, 0xAF));
 
-            // All tab
-            AllTabText.Foreground = allActive ? activeBrush : inactiveBrush;
-            AllTabIcon.Stroke = allActive ? activeBrush : inactiveBrush;
-            AllTabUnderline.Background = allActive ? activeBrush : Brushes.Transparent;
+            // All tab text + icon
+            AllTabText.Foreground   = allActive ? activeBrush : inactiveBrush;
+            AllTabIcon.Stroke       = allActive ? activeBrush : inactiveBrush;
 
-            // Downloaded tab
-            DownloadedTabText.Foreground = !allActive ? activeBrush : inactiveBrush;
-            DownloadedTabIcon.Stroke = !allActive ? activeBrush : inactiveBrush;
-            DownloadedTabUnderline.Background = !allActive ? activeBrush : Brushes.Transparent;
+            // Downloaded tab text + icon
+            DownloadedTabText.Foreground  = !allActive ? activeBrush : inactiveBrush;
+            DownloadedTabIcon.Stroke      = !allActive ? activeBrush : inactiveBrush;
+
+            // Pill background: crisp white in light, elevated surface in dark
+            TabPill.Background = _isDarkMode
+                ? new SolidColorBrush(Color.FromRgb(0x32, 0x35, 0x4A))
+                : Brushes.White;
+
+            // Slide the pill: col 0 = All, col 1 = Downloaded
+            // Guard: ActualWidth can be 0 when the panel hasn't been laid out yet
+            // (e.g. theme toggle called before DownloadsPanel slides in)
+            double containerWidth = TabsContainerBorder.ActualWidth;
+            if (containerWidth > 8)
+            {
+                double halfWidth = Math.Max((containerWidth - 8) / 2.0, 1);
+                TabPill.Width = halfWidth;
+                TabPill.HorizontalAlignment = HorizontalAlignment.Left;
+                TabPill.Margin = new Thickness(allActive ? 0 : halfWidth, 0, 0, 0);
+            }
+            // else: pill keeps its XAML default width until the panel is actually shown
         }
 
         private void ClearList_Click(object sender, RoutedEventArgs e)
@@ -2187,7 +2891,7 @@ namespace YouTubeDownloader
             Application.Current.Shutdown();
         }
 
-        private void DarkModeToggle_Click(object sender, MouseButtonEventArgs e)
+        private void DarkModeToggle_Click(object sender, RoutedEventArgs e)
         {
             _isDarkMode = !_isDarkMode;
             ApplyTheme();
@@ -2245,16 +2949,21 @@ namespace YouTubeDownloader
                     QualityTabContainer.Background = new SolidColorBrush(Color.FromRgb(28, 28, 32));
                     
                     // Downloads panel — dark mode
-                    DownloadsHeaderBorder.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x2E));
+                    DownloadsHeaderBorder.Background = new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x27));
                     DownloadsTitle.Foreground = Brushes.White;
-                    BackArrowPath.Stroke = Brushes.White;
-                    TabsContainerBorder.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x3A));
-                    TabsContainerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x4A));
+                    var backArrowDark = FindVisualChild<System.Windows.Shapes.Path>(this, "BackArrowPath");
+                    if (backArrowDark != null) backArrowDark.Stroke = new SolidColorBrush(Color.FromRgb(0xBB, 0xC8, 0xE0));
+                    TabsContainerBorder.Background = new SolidColorBrush(Color.FromRgb(0x24, 0x26, 0x36));
+                    TabsContainerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x38, 0x3A, 0x50));
+                    // Subtitle search container
+                    SubtitleSearchContainer.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2D, 0x3E));
+                    SubtitleSearchBox.Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE6, 0xF4));
+                    SubtitleSearchBox.CaretBrush = new SolidColorBrush(Color.FromRgb(0x5B, 0x8D, 0xEF));
                     // Update gear icon fill via visual tree
                     var gearIcon = FindVisualChild<System.Windows.Shapes.Path>(this, "SettingsGearIcon");
-                    if (gearIcon != null) gearIcon.Fill = Brushes.White;
+                    if (gearIcon != null) gearIcon.Fill = new SolidColorBrush(Color.FromRgb(0xBB, 0xCC, 0xFF));
                     var settingsBg = FindVisualChild<Border>(this, "SettingsBorder");
-                    if (settingsBg != null) settingsBg.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x3D));
+                    if (settingsBg != null) settingsBg.Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2F, 0x45));
                     // Update tab colors for current active tab
                     UpdateDownloadsTabs(allActive: !_showOnlyCompleted);
                     
@@ -2308,16 +3017,21 @@ namespace YouTubeDownloader
                     QualityTabContainer.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
                     
                     // Downloads panel — light mode
-                    DownloadsHeaderBorder.Background = new SolidColorBrush(Color.FromRgb(0xF0, 0xF2, 0xF5));
+                    DownloadsHeaderBorder.Background = new SolidColorBrush(Color.FromRgb(0xFA, 0xFB, 0xFF));
                     DownloadsTitle.Foreground = new SolidColorBrush(Color.FromRgb(0x1E, 0x29, 0x3B));
-                    BackArrowPath.Stroke = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
-                    TabsContainerBorder.Background = new SolidColorBrush(Color.FromRgb(0xE8, 0xEC, 0xF1));
-                    TabsContainerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xD1, 0xD5, 0xDB));
+                    var backArrowLight = FindVisualChild<System.Windows.Shapes.Path>(this, "BackArrowPath");
+                    if (backArrowLight != null) backArrowLight.Stroke = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
+                    TabsContainerBorder.Background = new SolidColorBrush(Color.FromRgb(0xED, 0xF0, 0xF7));
+                    TabsContainerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xD8, 0xDC, 0xE8));
+                    // Subtitle search container
+                    SubtitleSearchContainer.Background = new SolidColorBrush(Color.FromRgb(0xF3, 0xF4, 0xF6));
+                    SubtitleSearchBox.Foreground = new SolidColorBrush(Color.FromRgb(0x37, 0x41, 0x51));
+                    SubtitleSearchBox.CaretBrush = new SolidColorBrush(Color.FromRgb(0x5B, 0x8D, 0xEF));
                     // Update gear icon fill via visual tree
                     var gearIcon = FindVisualChild<System.Windows.Shapes.Path>(this, "SettingsGearIcon");
-                    if (gearIcon != null) gearIcon.Fill = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6));
+                    if (gearIcon != null) gearIcon.Fill = new SolidColorBrush(Color.FromRgb(0x5B, 0x8D, 0xEF));
                     var settingsBg = FindVisualChild<Border>(this, "SettingsBorder");
-                    if (settingsBg != null) settingsBg.Background = new SolidColorBrush(Color.FromRgb(0xE2, 0xE8, 0xF0));
+                    if (settingsBg != null) settingsBg.Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF2, 0xFF));
                     // Update tab colors for current active tab
                     UpdateDownloadsTabs(allActive: !_showOnlyCompleted);
                     
@@ -2437,6 +3151,12 @@ namespace YouTubeDownloader
                     {
                         SetDefaultDownloadFolder();
                     }
+                    
+                    // Load dark mode preference (defaults to true)
+                    if (root.TryGetProperty("isDarkMode", out var darkModeProp))
+                    {
+                        _isDarkMode = darkModeProp.GetBoolean();
+                    }
                 }
                 else
                 {
@@ -2465,7 +3185,8 @@ namespace YouTubeDownloader
             {
                 var settings = new
                 {
-                    downloadFolder = _downloadFolder
+                    downloadFolder = _downloadFolder,
+                    isDarkMode = _isDarkMode
                 };
                 
                 var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
@@ -2517,3 +3238,7 @@ namespace YouTubeDownloader
                 }
             }
         }
+    }
+
+    // Models moved to src/Models folder - keeping code organized!
+}
